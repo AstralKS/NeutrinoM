@@ -9,13 +9,11 @@ Analyzes trends and calculates relevance scores based on:
 
 from advisor.database.models import TechStackInfo
 from advisor.trends.models import (
-    TECH_KEYWORDS,
     TrendCategory,
     TrendItem,
     TrendMatch,
     TrendReport,
 )
-
 
 # Technology relationships (what pairs well together)
 TECH_RELATIONS = {

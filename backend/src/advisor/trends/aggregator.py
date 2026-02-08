@@ -9,6 +9,7 @@ All sources are fetched in parallel for efficiency.
 """
 
 import asyncio
+import contextlib
 import logging
 import re
 from datetime import datetime
@@ -151,12 +152,10 @@ class TrendAggregator:
                 # Parse date
                 published = None
                 if article.get("published_at"):
-                    try:
+                    with contextlib.suppress(ValueError, TypeError):
                         published = datetime.fromisoformat(
                             article["published_at"].replace("Z", "+00:00")
                         )
-                    except (ValueError, TypeError):
-                        pass
 
                 trends.append(TrendItem(
                     id=f"devto_{article.get('id')}",
@@ -196,16 +195,13 @@ class TrendAggregator:
             html = resp.text
 
             # Parse trending repos (simplified regex parsing)
-            repo_pattern = r'href="/([^/]+/[^"]+)"[^>]*>\s*<span[^>]*>([^<]+)</span>'
-            star_pattern = r'(\d+(?:,\d+)*)\s*stars today'
-
             repos = re.findall(
                 r'<article class="Box-row"[^>]*>(.*?)</article>',
                 html,
                 re.DOTALL,
             )
 
-            for i, repo_html in enumerate(repos[:limit]):
+            for _i, repo_html in enumerate(repos[:limit]):
                 # Extract repo name
                 repo_match = re.search(
                     r'href="/([^"]+)"[^>]*class="[^"]*Link[^"]*"',

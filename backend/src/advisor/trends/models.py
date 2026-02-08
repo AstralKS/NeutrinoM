@@ -94,3 +94,54 @@ TECH_KEYWORDS = {
     "database": ["postgres", "mongodb", "redis", "supabase", "planetscale", "turso"],
     "devops": ["docker", "kubernetes", "k8s", "terraform", "pulumi"],
 }
+
+
+class TrendSource(BaseModel):
+    """A single source with link and date."""
+
+    title: str = ""
+    url: str = ""
+    source_type: str = ""  # "web", "github", "hn"
+    date: str = ""
+    score: int = 0
+
+
+class TrendInsight(BaseModel):
+    """Summarized trend insight for RAG storage.
+
+    Includes source links and dates for user verification.
+    """
+
+    id: str = ""
+    tag: str
+    key_points: list[str] = Field(
+        default_factory=list,
+        description="Max 5-7 bullet points summarizing the trend",
+    )
+    momentum: str = ""  # rising, stable, declining
+    risks: list[str] = Field(
+        default_factory=list,
+        description="Max 3 key risks",
+    )
+    opportunities: list[str] = Field(
+        default_factory=list,
+        description="Max 3 key opportunities",
+    )
+    direction: str = ""  # Where the tech is heading
+    sources: list[TrendSource] = Field(
+        default_factory=list,
+        description="Top sources with links and dates",
+    )
+    sources_count: int = 0
+    collected_at: datetime = Field(default_factory=datetime.utcnow)
+    embedding: list[float] | None = Field(default=None)
+
+
+class RawTrendData(BaseModel):
+    """Raw collected data before summarization."""
+
+    tag: str
+    serper_results: list[dict] = Field(default_factory=list)
+    github_repos: list[dict] = Field(default_factory=list)
+    hn_items: list[dict] = Field(default_factory=list)
+    collected_at: datetime = Field(default_factory=datetime.utcnow)

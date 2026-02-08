@@ -33,7 +33,7 @@ AVAILABLE_MODELS: list[ModelInfo] = [
     ModelInfo(
         id="tngtech/deepseek-r1t2-chimera:free",
         name="DeepSeek R1T2 Chimera",
-        context_length=32768,
+        context_length=128000,
         capabilities=[
             ModelCapability.ANALYSIS,
             ModelCapability.REASONING,
@@ -44,7 +44,7 @@ AVAILABLE_MODELS: list[ModelInfo] = [
     ModelInfo(
         id="moonshotai/kimi-k2:free",
         name="Moonshot Kimi K2",
-        context_length=32768,
+        context_length=128000,
         capabilities=[
             ModelCapability.ANALYSIS,
             ModelCapability.SUMMARIZATION,
@@ -54,7 +54,7 @@ AVAILABLE_MODELS: list[ModelInfo] = [
     ModelInfo(
         id="arcee-ai/trinity-large-preview:free",
         name="Arcee Trinity Large",
-        context_length=16384,
+        context_length=128000,
         capabilities=[
             ModelCapability.ANALYSIS,
             ModelCapability.CODING,
@@ -64,7 +64,7 @@ AVAILABLE_MODELS: list[ModelInfo] = [
     ModelInfo(
         id="z-ai/glm-4.5-air:free",
         name="GLM 4.5 Air",
-        context_length=16384,
+        context_length=128000,
         capabilities=[
             ModelCapability.ANALYSIS,
             ModelCapability.SUMMARIZATION,

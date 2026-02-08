@@ -61,6 +61,12 @@ class Settings(BaseSettings):
         description="OpenRouter API base URL",
     )
 
+    # Serper API Configuration (for web search)
+    serper_api_key: str | None = Field(
+        default=None,
+        description="Serper API key for web search in trend analysis",
+    )
+
     # Application Configuration
     app_name: str = Field(
         default="AI Development Advisor",
