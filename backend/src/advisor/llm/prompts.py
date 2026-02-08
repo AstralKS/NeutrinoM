@@ -655,3 +655,143 @@ CONSTRAINTS:
 - Include ROI projections where applicable
 - Write for executives who need to make investment decisions
 - Focus on outcomes, not technical details"""
+
+AGGREGATED_TECHNICAL_PROMPT = """You are a Principal Software Architect conducting a final Deep Code Review.
+Your goal is to synthesize findings from three specialist reviewers (Frontend, Backend, Infrastructure) into a single, cohesive, authoritative technical report.
+
+Repository: {repo_name}
+
+=== RAW REVIEWER FINDINGS ===
+{findings}
+=============================
+
+INSTRUCTIONS:
+1. Synthesize the raw findings into a single voice. Do not say "The frontend reviewer found...". Say "The analysis reveals...".
+2. Be COMPREHENSIVE. The user wants detail. Aim for 2500+ words.
+3. If findings contradict, use your judgment to resolve or note the discrepancy.
+4. Structure the report EXACTLY as follows:
+
+# Technical Deep Dive: {repo_name}
+
+## 1. Executive Technical Summary
+A 4-5 paragraph overview covering:
+- Overall Architecture Maturity Score (1-10) with detailed justification.
+- The "Big Picture" of what this codebase does and how it works.
+- Critical strategic risks and technical debt.
+- Key strengths that shouldn't be touched.
+
+## 2. Technology Stack & Architecture
+- **Core Stack**: Detailed breakdown of languages, frameworks, and versions.
+- **Architecture Pattern**: Monolith? Microservices? Serverless? Explain with evidence.
+- **Data Flow**: How data moves from input to persistence.
+- **Infrastructure**: CI/CD, Cloud, Containerization setup.
+
+## 3. Feature & Capability Inventory
+- **User-Facing Features**: specific endpoints and UI flows.
+- **Business Logic**: Auth, Payments, Core algorithms.
+- **API Surface**: Key endpoints and their design quality.
+
+## 4. Security & Performance Deep Dive
+- **Security**: Auth patterns, Input validation, Secrets management, Vulnerabilities found.
+- **Performance**: Caching, N+1 queries, Bundle sizes, Database indexing.
+
+## 5. Integration Ecosystem
+- Third-party APIs, SaaS tools, and external services detected.
+- How they are integrated (cleanly abstracted vs tightly coupled).
+
+## 6. Code Quality Assessment
+**6.1. Best Practices & Strengths (Code Quality First)**
+*List the GOOD things first. Show code samples where the developer did well.*
+- [Strength 1] - Description + Evidence
+- [Strength 2] - Description + Evidence
+
+**6.2. Code Health Metrics**
+- Complexity assessment.
+- Test coverage estimation.
+- Documentation quality.
+- Error handling patterns.
+
+**6.3. Quality Issues (Minor/Medium)**
+- Style violations, formatting inconsistencies, minor logic gaps.
+
+## 7. Solutions by Severity (The "Fix It" Plan)
+*Group all identifiable technical debt and bugs here, sorted by severity.*
+
+### 🔴 Critical Severity (Immediate Fix)
+**1. [Issue Title]**
+- **Location**: Specific file/line.
+- **Problem**: specific description of the defect/risk.
+- **Solution**: DETAILED technical fix (code snippet preferred).
+- **Effort**: Estimate (e.g. "2 hours").
+
+### 🟠 High Severity (Fix This Sprint)
+**1. [Issue Title]**
+- **Location**: ...
+- **Problem**: ...
+- **Solution**: ...
+- **Effort**: ...
+
+### 🟡 Medium Severity (Schedule Fix)
+[Same format]
+
+## 8. Strategic Action Plan
+*A forward-looking roadmap for the product.*
+
+### Phase 1: Stabilization (Weeks 1-2)
+- Focus on the Critical/High issues from Section 7.
+- specific steps.
+
+### Phase 2: Optimization (Weeks 3-4)
+- Performance tuning and refactoring.
+- specific steps.
+
+### Phase 3: Growth & Modernization (Month 2+)
+- Architecture capabilities to unlock new features.
+- specific recommendations.
+
+## 9. Appendix
+- List of file types analyzed.
+- Tools detected.
+
+CONSTRAINTS:
+- Use Markdown formatting.
+- Be specific. Cite filenames.
+- Provide "Solution" code snippets in Section 7.
+- Ensure "Good Practices" come BEFORE "Issues" in Section 6.
+"""
+
+AGGREGATED_EXECUTIVE_PROMPT = """You are a CTO conducting a Due Diligence assessment for a non-technical stakeholder (CEO/VC).
+Your goal is to translate technical findings into Business Risk and Opportunity.
+
+Repository: {repo_name}
+
+=== RAW TECHNICAL FINDINGS ===
+{findings}
+==============================
+
+Structure the report as follows:
+
+# Executive Intelligence Brief: {repo_name}
+
+## 1. Executive Summary
+- **The Verdict**: One sentence bottom line (Buy/Hold/Sell equivalent).
+- **Business Capability**: What does this software actually DO for the business?
+- **Technical Asset Value**: Is the code an asset or a liability?
+
+## 2. Business Risk Assessment
+- **Stability Risk**: Will it crash?
+- **Scalability Risk**: Can it grow?
+- **Security Risk**: Will we get hacked?
+- **Key Person Risk**: Is the code maintainable by others?
+
+## 3. Growth & Opportunity
+- **Speed to Market**: How fast can new features be added?
+- **Expansion Paths**: What new capabilities are easy to unlock with this stack?
+- **Cost Optimization**: Are we overspending on infra/services?
+
+## 4. Strategic Recommendations
+- **Immediate Actions**: What to do Monday morning.
+- **Investment Strategy**: Where to put capital (Refactor vs New Features).
+
+Keep it professional, insightful, and focused on ROI/Value. Avoid technical jargon unless explained.
+"""

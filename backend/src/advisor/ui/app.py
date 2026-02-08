@@ -8,7 +8,7 @@ import streamlit as st
 from datetime import datetime
 
 # Configuration
-API_BASE_URL = "http://localhost:8000"
+API_BASE_URL = "http://127.0.0.1:8001"
 
 
 def init_session_state():
@@ -55,14 +55,24 @@ def main():
 
         # Check API health
         try:
-            with httpx.Client(timeout=5.0) as client:
+            # Debug connection info
+            st.caption(f"Connecting to: `{API_BASE_URL}`")
+            
+            with httpx.Client(timeout=30.0) as client:
                 response = client.get(f"{API_BASE_URL}/health")
                 if response.status_code == 200:
                     st.success("✅ API Connected")
                 else:
-                    st.error("❌ API Error")
-        except Exception:
+                    st.error(f"❌ API Error: {response.status_code}")
+        except httpx.TimeoutException:
+            st.error("❌ API Timed Out")
+            st.caption("Server is taking too long to respond.")
+        except httpx.ConnectError:
+            st.error("❌ Connection Refused")
+            st.caption("Server is not running or unreachable.")
+        except Exception as e:
             st.error("❌ API Unavailable")
+            st.caption(f"Error: {str(e)}")
             st.caption("Start API: `uv run uvicorn advisor.api.endpoints:app`")
 
     # Main content
@@ -111,9 +121,13 @@ def run_analysis(repo_url: str, access_token: str | None):
     st.session_state.is_analyzing = True
     st.session_state.error_message = None
 
-    with st.spinner("🔍 Analyzing repository... This may take 1-2 minutes."):
+    with st.spinner("🔍 Analyzing repository... This may take 5-10 minutes with free models."):
         try:
-            with httpx.Client(timeout=300.0) as client:
+            # Debug connection info
+            st.caption(f"Posting to: `{API_BASE_URL}/analyze`")
+            
+            # Increased timeout for deep analysis with free LLMs
+            with httpx.Client(timeout=1200.0) as client:
                 response = client.post(
                     f"{API_BASE_URL}/analyze",
                     json={
@@ -131,7 +145,7 @@ def run_analysis(repo_url: str, access_token: str | None):
                     st.session_state.error_message = f"Analysis failed: {error}"
 
         except httpx.TimeoutException:
-            st.session_state.error_message = "Analysis timed out. Try again."
+            st.session_state.error_message = "Analysis timed out (20m limit). The server is busy or models are slow."
         except Exception as e:
             st.session_state.error_message = f"Error: {str(e)}"
 

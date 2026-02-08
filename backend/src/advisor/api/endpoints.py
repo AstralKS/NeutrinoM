@@ -26,6 +26,21 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting AI Development Advisor API")
     try:
+        # Load environment variables explicitly
+        from pathlib import Path
+        from dotenv import load_dotenv
+
+        # Find project root (.env is in NeutrinoM/)
+        # Current file: backend/src/advisor/api/endpoints.py
+        project_root = Path(__file__).parent.parent.parent.parent.parent
+        env_path = project_root / ".env"
+        
+        if env_path.exists():
+            load_dotenv(env_path)
+            logger.info(f"Loaded environment from {env_path}")
+        else:
+            logger.warning(f".env file not found at {env_path}")
+
         settings = get_settings()
         logger.info(f"Loaded settings for {settings.app_name}")
     except Exception as e:
@@ -89,6 +104,8 @@ async def analyze_repository(request: AnalysisRequest) -> AnalysisResponse:
     Note: Access tokens are used ephemerally and never stored.
     """
     try:
+        print(f"DEBUG: Received analysis request for {request.repo_url}")
+        logger.info(f"Received analysis request for {request.repo_url}")
         # Create orchestrator with optional token
         orchestrator = AnalysisOrchestrator(
             github_token=request.access_token,
@@ -121,10 +138,10 @@ async def analyze_repository(request: AnalysisRequest) -> AnalysisResponse:
             detail=str(e),
         ) from e
     except Exception as e:
-        logger.error(f"Analysis failed: {e}")
+        logger.exception("Analysis failed with traceback")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Analysis failed: {str(e)}",
+            detail=f"Analysis failed: {str(e) or 'Unknown error'}",
         ) from e
 
 

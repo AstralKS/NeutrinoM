@@ -5,6 +5,7 @@ Credentials are ephemeral and never stored.
 """
 
 import logging
+import os
 import re
 from typing import Any
 
@@ -37,7 +38,7 @@ class GitHubClient:
             access_token: GitHub personal access token for private repos.
                          Used only for this request, never stored.
         """
-        self._access_token = access_token
+        self._access_token = access_token or os.getenv("GITHUB_TOKEN")
 
     def _get_headers(self) -> dict[str, str]:
         """Build request headers with optional auth."""
