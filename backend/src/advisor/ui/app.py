@@ -8,7 +8,7 @@ import streamlit as st
 from datetime import datetime
 
 # Configuration
-API_BASE_URL = "http://127.0.0.1:8001"
+API_BASE_URL = "http://127.0.0.1:8000"
 
 
 def init_session_state():

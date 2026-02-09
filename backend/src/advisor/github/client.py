@@ -4,6 +4,7 @@ Fetches repository metadata, file trees, and content samples.
 Credentials are ephemeral and never stored.
 """
 
+import asyncio
 import logging
 import os
 import re
@@ -12,6 +13,44 @@ from typing import Any
 import httpx
 
 logger = logging.getLogger(__name__)
+
+
+async def retry_with_backoff(
+    coro_func,
+    max_retries: int = 3,
+    base_delay: float = 1.0,
+    max_delay: float = 10.0,
+):
+    """Retry an async function with exponential backoff.
+    
+    Args:
+        coro_func: A callable that returns a coroutine.
+        max_retries: Maximum number of retry attempts.
+        base_delay: Initial delay in seconds.
+        max_delay: Maximum delay in seconds.
+    
+    Returns:
+        The result of the successful coroutine call.
+    
+    Raises:
+        The last exception if all retries fail.
+    """
+    last_exception = None
+    for attempt in range(max_retries + 1):
+        try:
+            return await coro_func()
+        except (httpx.RemoteProtocolError, httpx.ConnectError, httpx.TimeoutException) as e:
+            last_exception = e
+            if attempt < max_retries:
+                delay = min(base_delay * (2 ** attempt), max_delay)
+                logger.warning(
+                    f"Network error (attempt {attempt + 1}/{max_retries + 1}): {e}. "
+                    f"Retrying in {delay:.1f}s..."
+                )
+                await asyncio.sleep(delay)
+            else:
+                logger.error(f"All {max_retries + 1} attempts failed: {e}")
+    raise last_exception
 
 GITHUB_API_URL = "https://api.github.com"
 
@@ -89,7 +128,7 @@ class GitHubClient:
         Returns:
             Repository metadata including default branch, size, etc.
         """
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
             response = await client.get(
                 f"{GITHUB_API_URL}/repos/{owner}/{repo}",
                 headers=self._get_headers(),
@@ -133,13 +172,16 @@ class GitHubClient:
         Returns:
             List of file/directory entries with paths and types.
         """
-        async with httpx.AsyncClient(timeout=60.0) as client:
-            # Get the tree recursively
-            response = await client.get(
-                f"{GITHUB_API_URL}/repos/{owner}/{repo}/git/trees/{branch}",
-                params={"recursive": "1"},
-                headers=self._get_headers(),
-            )
+        async with httpx.AsyncClient(timeout=60.0, follow_redirects=True) as client:
+            # Get the tree recursively with retry logic
+            async def make_request():
+                return await client.get(
+                    f"{GITHUB_API_URL}/repos/{owner}/{repo}/git/trees/{branch}",
+                    params={"recursive": "1"},
+                    headers=self._get_headers(),
+                )
+
+            response = await retry_with_backoff(make_request)
 
             if response.status_code != 200:
                 raise GitHubError(
@@ -183,7 +225,7 @@ class GitHubClient:
         Returns:
             File content as string, or None if too large or binary.
         """
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
             response = await client.get(
                 f"{GITHUB_API_URL}/repos/{owner}/{repo}/contents/{path}",
                 params={"ref": branch},

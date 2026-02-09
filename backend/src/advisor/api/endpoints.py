@@ -105,11 +105,13 @@ async def analyze_repository(request: AnalysisRequest) -> AnalysisResponse:
     """
     try:
         print(f"DEBUG: Received analysis request for {request.repo_url}")
-        logger.info(f"Received analysis request for {request.repo_url}")
+        logger.info(f"Starting analysis of {request.repo_url}")
+        print(f"DEBUG: AnalysisOrchestrator starting for {request.repo_url}")
         # Create orchestrator with optional token
         orchestrator = AnalysisOrchestrator(
             github_token=request.access_token,
         )
+        print(f"DEBUG: Orchestrator created for {request.repo_url}")
 
         # Run analysis
         result = await orchestrator.analyze(request.repo_url)
@@ -138,10 +140,11 @@ async def analyze_repository(request: AnalysisRequest) -> AnalysisResponse:
             detail=str(e),
         ) from e
     except Exception as e:
-        logger.exception("Analysis failed with traceback")
+        error_msg = str(e) or repr(e) or f"{type(e).__name__}: (no message)"
+        logger.exception(f"Analysis failed: {error_msg}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Analysis failed: {str(e) or 'Unknown error'}",
+            detail=f"Analysis failed: {error_msg}",
         ) from e
 
 
