@@ -665,6 +665,14 @@ Repository: {repo_name}
 {findings}
 =============================
 
+=== MARKET CONTEXT & TECH TRENDS ===
+{trend_context}
+====================================
+
+=== VERSION ANALYSIS & UPGRADES ===
+{version_context}
+===================================
+
 INSTRUCTIONS:
 1. Synthesize the raw findings into a single voice. Do not say "The frontend reviewer found...". Say "The analysis reveals...".
 2. Be COMPREHENSIVE. The user wants detail. Aim for 2500+ words.
@@ -767,6 +775,14 @@ Repository: {repo_name}
 
 === RAW TECHNICAL FINDINGS ===
 {findings}
+==============================
+
+=== MARKET CONTEXT ===
+{trend_context}
+======================
+
+=== VERSION UPGRADE IMPACT ===
+{version_context}
 ==============================
 
 Structure the report as follows:

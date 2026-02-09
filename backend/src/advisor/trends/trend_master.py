@@ -139,6 +139,98 @@ class TrendMaster:
 
         return results
 
+    async def get_batch_trends(
+        self,
+        tags: list[str],
+        use_cache: bool = True,
+    ) -> dict[str, TrendInsight | None]:
+        """Get trends for multiple tags efficiently.
+
+        Unlike run_weekly_collection, this uses cache and doesn't force refresh.
+        Ideal for analysis-time trend context fetching.
+
+        Args:
+            tags: List of technology tags to look up.
+            use_cache: If True, prefer cached data over fresh collection.
+
+        Returns:
+            Dict mapping tags to TrendInsight (or None if not available).
+        """
+        results: dict[str, TrendInsight | None] = {}
+
+        for tag in tags:
+            tag = tag.lower().strip()
+            try:
+                if use_cache:
+                    # Try cache first
+                    cached = await self._rag.get_recent_for_tag(
+                        tag, days=COLLECTION_INTERVAL_DAYS
+                    )
+                    if cached:
+                        results[tag] = cached
+                        continue
+
+                # Fall back to fresh collection
+                insight = await self.analyze_tag(tag, force_refresh=False)
+                results[tag] = insight
+            except Exception as e:
+                logger.warning(f"Could not get trends for '{tag}': {e}")
+                results[tag] = None
+
+        return results
+
+    def format_for_analysis(
+        self,
+        trends: dict[str, TrendInsight | None],
+    ) -> str:
+        """Format trend insights for inclusion in analysis prompts.
+
+        Args:
+            trends: Dict of tag names to TrendInsight.
+
+        Returns:
+            Formatted markdown string for prompt injection.
+        """
+        if not trends or all(v is None for v in trends.values()):
+            return "No technology trend data available."
+
+        sections = []
+
+        for tag, insight in trends.items():
+            if insight is None:
+                continue
+
+            momentum_emoji = {
+                "rising": "📈",
+                "stable": "➡️",
+                "declining": "📉",
+            }.get(insight.momentum, "❓")
+
+            section = f"### {tag.title()} {momentum_emoji} ({insight.momentum})\n"
+
+            # Key points
+            if insight.key_points:
+                section += "**Key Trends:**\n"
+                for point in insight.key_points[:3]:
+                    section += f"- {point}\n"
+
+            # Direction
+            if insight.direction:
+                section += f"\n**Direction:** {insight.direction}\n"
+
+            # Opportunities & Risks
+            if insight.opportunities:
+                section += f"\n**Opportunities:** {', '.join(insight.opportunities[:2])}\n"
+            if insight.risks:
+                section += f"\n**Risks:** {', '.join(insight.risks[:2])}\n"
+
+            sections.append(section)
+
+        if not sections:
+            return "No technology trend data available."
+
+        return "\n".join(sections)
+
     def should_collect(self, last_collection: datetime | None) -> bool:
         """Check if collection is needed based on weekly schedule.
 

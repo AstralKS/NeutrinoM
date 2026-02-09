@@ -12,12 +12,15 @@ Each AI gets up to 100K tokens and does ACTUAL code analysis.
 
 import asyncio
 import logging
+import re
 from dataclasses import dataclass
 from typing import Any
 
 from advisor.analysis.core.token_optimizer import TokenOptimizer, CompressionStats
 from advisor.llm.client import OpenRouterClient
 from advisor.llm.models import AvailableModels
+from advisor.trends.trend_master import TrendMaster
+from advisor.trends.version_checker import VersionChecker, PackageInfo
 
 logger = logging.getLogger(__name__)
 
@@ -78,13 +81,19 @@ INFRA_PATTERNS = [
 class DeepReviewOrchestrator:
     """Orchestrates multi-AI deep code review."""
 
-    def __init__(self) -> None:
-        """Initialize with LLM client and token optimizer."""
+    def __init__(
+        self,
+        trend_master: TrendMaster | None = None,
+        version_checker: VersionChecker | None = None,
+    ) -> None:
+        """Initialize with LLM client, token optimizer, and trend/version services."""
         self._llm = OpenRouterClient()
         self._optimizer = TokenOptimizer(
             max_file_chars=15000,  # Aggressive truncation
             max_total_chars=600000,  # ~150K tokens for all 3 chunks
         )
+        self._trend_master = trend_master or TrendMaster()
+        self._version_checker = version_checker or VersionChecker()
 
     async def review(
         self,
@@ -139,9 +148,9 @@ class DeepReviewOrchestrator:
             chunk_name="infrastructure", files_analyzed=[], token_count=0, findings="", error=str(results[2])
         )
 
-        # Step 4: Aggregate into final reports
+        # Step 4: Aggregate into final reports with trend/version context
         technical, executive, model = await self._aggregate_reports(
-            repo_name, frontend_result, backend_result, infra_result
+            repo_name, frontend_result, backend_result, infra_result, file_contents
         )
 
         total_tokens = (
@@ -372,8 +381,9 @@ END INSTRUCTIONS. Begin your analysis."""
         frontend: ChunkAnalysis,
         backend: ChunkAnalysis,
         infra: ChunkAnalysis,
+        file_contents: dict[str, str] | None = None,
     ) -> tuple[str, str, str]:
-        """Aggregate 3 chunk analyses into final reports."""
+        """Aggregate 3 chunk analyses into final reports with trend and version context."""
         # Combine all findings
         combined_findings = f"""
 # FRONTEND ANALYSIS
@@ -389,40 +399,167 @@ Files analyzed: {len(infra.files_analyzed)}
 {infra.findings if infra.findings else 'No infrastructure files or error occurred.'}
 """
 
-        # Generate final technical report
+        # Fetch trend and version context
+        trend_context = "No trend data available."
+        version_context = "No version data available."
+        
+        if file_contents:
+            try:
+                # Extract tech tags and fetch trend context
+                tech_tags = self._extract_tech_tags(file_contents)
+                if tech_tags:
+                    trends = await self._trend_master.get_batch_trends(list(tech_tags)[:10])
+                    trend_context = self._trend_master.format_for_analysis(trends)
+                
+                # Extract packages and fetch version context
+                packages = self._extract_packages(file_contents)
+                if packages:
+                    versions = await self._version_checker.get_batch_versions(packages[:20])
+                    version_context = self._version_checker.format_for_analysis(versions)
+            except Exception as e:
+                logger.warning(f"Could not fetch trend/version context: {e}")
+
+        # Generate final technical report with context
         tech_result = await self._llm.complete(
-            prompt=self._build_technical_aggregation_prompt(repo_name, combined_findings),
-            system_prompt="You are a senior technical architect. Synthesize code review findings into a comprehensive technical report. Only include findings that have evidence.",
+            prompt=self._build_technical_aggregation_prompt(
+                repo_name, combined_findings, trend_context, version_context
+            ),
+            system_prompt="You are a senior technical architect. Synthesize code review findings into a comprehensive technical report. Use the trend and version context to inform upgrade recommendations. Only include findings that have evidence.",
             temperature=0.2,
             max_tokens=8000,
         )
 
-        # Generate final executive report
+        # Generate final executive report with context
         exec_result = await self._llm.complete(
-            prompt=self._build_executive_aggregation_prompt(repo_name, combined_findings),
-            system_prompt="You are a technology strategist. Translate technical findings into business-focused insights. Focus on impact, not technical details. Only include findings with evidence.",
+            prompt=self._build_executive_aggregation_prompt(
+                repo_name, combined_findings, trend_context, version_context
+            ),
+            system_prompt="You are a technology strategist. Translate technical findings into business-focused insights. Use trend data to highlight market opportunities. Focus on impact, not technical details. Only include findings with evidence.",
             temperature=0.2,
             max_tokens=6000,
         )
 
         return tech_result["content"], exec_result["content"], tech_result["model"]
 
+    def _extract_tech_tags(self, file_contents: dict[str, str]) -> set[str]:
+        """Extract technology tags from file contents for trend lookup."""
+        tags: set[str] = set()
+        all_content = " ".join(file_contents.values()).lower()
+        
+        # Map patterns to tag names
+        tech_patterns = {
+            r"\breact\b": "react",
+            r"\bnext\.?js\b|next/": "nextjs",
+            r"\bvue\b": "vue",
+            r"\bangular\b": "angular",
+            r"\bsvelte\b": "svelte",
+            r"\bfastapi\b": "fastapi",
+            r"\bdjango\b": "django",
+            r"\bflask\b": "flask",
+            r"\bexpress\b": "express",
+            r"\bnestjs\b": "nestjs",
+            r"\bpostgres|postgresql\b": "postgresql",
+            r"\bmongodb\b": "mongodb",
+            r"\bredis\b": "redis",
+            r"\bsupabase\b": "supabase",
+            r"\bprisma\b": "prisma",
+            r"\btailwind\b": "tailwindcss",
+            r"\btypescript\b": "typescript",
+            r"\bpython\b": "python",
+            r"\brust\b": "rust",
+            r"\bgo\b": "golang",
+            r"\bdocker\b": "docker",
+            r"\bkubernetes|k8s\b": "kubernetes",
+        }
+        
+        for pattern, tag in tech_patterns.items():
+            if re.search(pattern, all_content):
+                tags.add(tag)
+        
+        return tags
+
+    def _extract_packages(self, file_contents: dict[str, str]) -> list[PackageInfo]:
+        """Extract package names and versions from package files."""
+        packages: list[PackageInfo] = []
+        
+        for path, content in file_contents.items():
+            path_lower = path.lower()
+            
+            # Parse package.json
+            if path_lower.endswith("package.json"):
+                try:
+                    import json
+                    data = json.loads(content)
+                    deps = {**data.get("dependencies", {}), **data.get("devDependencies", {})}
+                    for name, version in deps.items():
+                        # Clean version string (remove ^, ~, etc.)
+                        clean_version = re.sub(r"^[\^~>=<]+", "", str(version))
+                        packages.append(PackageInfo(
+                            name=name,
+                            current_version=clean_version if clean_version else None,
+                            registry="npm",
+                        ))
+                except Exception:
+                    pass
+            
+            # Parse requirements.txt
+            elif path_lower.endswith("requirements.txt"):
+                for line in content.split("\n"):
+                    line = line.strip()
+                    if line and not line.startswith("#"):
+                        # Parse: package==version or package>=version
+                        match = re.match(r"^([a-zA-Z0-9_-]+)\s*([=<>!]+)?\s*([\d\.]+)?", line)
+                        if match:
+                            packages.append(PackageInfo(
+                                name=match.group(1),
+                                current_version=match.group(3),
+                                registry="pypi",
+                            ))
+            
+            # Parse pyproject.toml dependencies
+            elif path_lower.endswith("pyproject.toml"):
+                # Simple regex extraction for common patterns
+                for match in re.finditer(r'"([a-zA-Z0-9_-]+)\s*([<>=!]+)?\s*([\d\.]+)?"', content):
+                    packages.append(PackageInfo(
+                        name=match.group(1),
+                        current_version=match.group(3),
+                        registry="pypi",
+                    ))
+        
+        return packages
+
     def _build_technical_aggregation_prompt(
         self,
         repo_name: str,
         findings: str,
+        trend_context: str = "",
+        version_context: str = "",
     ) -> str:
-        """Build comprehensive technical report prompt."""
+        """Build comprehensive technical report prompt with trend and version context."""
         from advisor.llm.prompts import AGGREGATED_TECHNICAL_PROMPT
-        return AGGREGATED_TECHNICAL_PROMPT.format(repo_name=repo_name, findings=findings)
-
+        
+        # Now prompts.py has placeholders, so we format them directly
+        return AGGREGATED_TECHNICAL_PROMPT.format(
+            repo_name=repo_name,
+            findings=findings,
+            trend_context=trend_context,
+            version_context=version_context,
+        )
 
     def _build_executive_aggregation_prompt(
         self,
         repo_name: str,
         findings: str,
+        trend_context: str = "",
+        version_context: str = "",
     ) -> str:
-        """Build executive report prompt."""
+        """Build executive report prompt with trend and version context."""
         from advisor.llm.prompts import AGGREGATED_EXECUTIVE_PROMPT
-        return AGGREGATED_EXECUTIVE_PROMPT.format(repo_name=repo_name, findings=findings)
+        
+        return AGGREGATED_EXECUTIVE_PROMPT.format(
+            repo_name=repo_name,
+            findings=findings,
+            trend_context=trend_context,
+            version_context=version_context,
+        )
 

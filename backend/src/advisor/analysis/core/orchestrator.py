@@ -47,9 +47,13 @@ class AnalysisOrchestrator:
         Args:
             github_token: Optional GitHub token for private repos.
         """
+        print("DEBUG: AnalysisOrchestrator.__init__ start", flush=True)
         self._github = GitHubClient(access_token=github_token)
+        print("DEBUG: GitHubClient initialized", flush=True)
         self._strategic_fetcher = StrategicFetcher(self._github)
+        print("DEBUG: StrategicFetcher initialized", flush=True)
         self._deep_reviewer = DeepReviewOrchestrator()
+        print("DEBUG: DeepReviewOrchestrator initialized", flush=True)
 
     async def analyze(self, repo_url: str) -> AnalysisRecord:
         """Run full analysis on a repository.
@@ -68,12 +72,16 @@ class AnalysisOrchestrator:
         repo_name = f"{owner}/{repo}"
 
         # Fetch repository data - get lots of files for deep review
+        print(f"DEBUG: calling _fetch_repository for {owner}/{repo}")
         structure, file_contents = await self._fetch_repository(owner, repo)
+        print(f"DEBUG: _fetch_repository returned {len(file_contents)} files")
 
         logger.info(f"Fetched {len(file_contents)} files for deep AI review")
 
         # Run deep AI review (3 parallel AI calls)
+        print(f"DEBUG: calling deep_reviewer.review")
         deep_result = await self._deep_reviewer.review(repo_name, file_contents)
+        print(f"DEBUG: deep_reviewer.review complete")
 
         logger.info(f"Deep review complete. Total tokens: {deep_result.total_tokens}")
 

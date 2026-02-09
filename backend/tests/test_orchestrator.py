@@ -7,7 +7,7 @@ Run: uv run pytest tests/test_orchestrator.py -v
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from advisor.analysis.orchestrator import AnalysisOrchestrator
+from advisor.analysis import AnalysisOrchestrator
 from advisor.database.models import TechStackInfo
 
 
@@ -58,11 +58,11 @@ class TestAnalysisOrchestrator:
         """Test full analysis with mocked dependencies."""
         with (
             patch(
-                "advisor.analysis.orchestrator.GitHubClient"
+                "advisor.analysis.core.orchestrator.GitHubClient"
             ) as MockGitHub,
             patch(
-                "advisor.analysis.orchestrator.OpenRouterClient"
-            ) as MockLLM,
+                "advisor.analysis.core.orchestrator.DeepReviewOrchestrator"
+            ) as MockDeepReview,
         ):
             # Setup mocks
             mock_github = MagicMock()

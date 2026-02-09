@@ -188,6 +188,8 @@ class RAGManager:
             return 0
 
     def _generate_id(self, tag: str, timestamp: datetime) -> str:
-        """Generate unique ID from tag and timestamp."""
+        """Generate unique UUID from tag and timestamp."""
+        import uuid
+        # Use a namespace UUID for determinism
         content = f"{tag.lower()}:{timestamp.isoformat()}"
-        return hashlib.sha256(content.encode()).hexdigest()[:16]
+        return str(uuid.uuid5(uuid.NAMESPACE_DNS, content))
