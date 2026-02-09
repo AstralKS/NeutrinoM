@@ -181,7 +181,13 @@ class OpenRouterClient:
                     status_code=response.status_code,
                 )
 
-            data = response.json()
+            try:
+                data = response.json()
+            except json.JSONDecodeError as e:
+                # Log the raw response for debugging
+                error_snippet = response.text[:500] if response.text else "Empty response"
+                logger.error(f"Failed to parse API response JSON. Status: {response.status_code}. Body snippet: {error_snippet}...")
+                raise OpenRouterError(f"Invalid JSON from API: {str(e)}", status_code=200)
 
             if "error" in data:
                 raise OpenRouterError(f"API error: {data['error']}")
@@ -190,23 +196,65 @@ class OpenRouterClient:
             usage = data.get("usage", {})
             self._total_tokens_used += usage.get("total_tokens", 0)
 
+            choice = data["choices"][0]
+            if "message" not in choice:
+                 # Should not happen in standard API, but good to be safe
+                 raise OpenRouterError(f"Unexpected response structure: {data.keys()}")
+            
             return {
-                "content": data["choices"][0]["message"]["content"],
+                "content": choice["message"]["content"],
                 "usage": usage,
             }
 
     def _parse_json_response(self, content: str) -> Any:
-        """Parse JSON from LLM response, handling markdown code blocks."""
-        # Strip markdown code blocks if present
-        content = content.strip()
-        if content.startswith("```"):
-            lines = content.split("\n")
-            # Remove first and last lines (code block markers)
-            content = "\n".join(lines[1:-1])
+        """Parse JSON from LLM response, robustly handling markdown and text wrappers."""
+        try:
+            # 1. Fast path: try parsing directly
+            return json.loads(content)
+        except json.JSONDecodeError:
+            pass
 
-        return json.loads(content)
+        # 2. Regex path: find the largest JSON object or array
+        import re
+        
+        # Try finding a JSON object {...}
+        json_obj_match = re.search(r"(\{[\s\S]*\})", content)
+        if json_obj_match:
+            try:
+                return json.loads(json_obj_match.group(1))
+            except json.JSONDecodeError:
+                pass
+        
+        # Try finding a JSON array [...]
+        json_arr_match = re.search(r"(\[[\s\S]*\])", content)
+        if json_arr_match:
+            try:
+                return json.loads(json_arr_match.group(1))
+            except json.JSONDecodeError:
+                pass
+                
+        # 3. Fallback: Cleanup markdown code blocks manually (legacy)
+        content_clean = content.strip()
+        if content_clean.startswith("```"):
+            lines = content_clean.split("\n")
+            # Remove first line (```json etc) and last line (```)
+            # Find last ```
+            if lines[-1].strip() == "```":
+                content_clean = "\n".join(lines[1:-1])
+            else:
+                content_clean = "\n".join(lines[1:])
+            
+            try:
+                return json.loads(content_clean)
+            except json.JSONDecodeError:
+                pass
+
+        # Final failure logging
+        logger.warning(f"Failed to parse JSON content. Start: {content[:100]}... End: {content[-100:]}")
+        raise json.JSONDecodeError("Could not extract valid JSON from response", content, 0)
 
     @property
     def total_tokens_used(self) -> int:
         """Get total tokens used across all requests."""
         return self._total_tokens_used
+

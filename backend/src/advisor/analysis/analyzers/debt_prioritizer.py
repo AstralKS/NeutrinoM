@@ -75,9 +75,21 @@ class DebtPrioritizer:
             self._write_files_to_temp(file_contents, temp_path)
 
             # Run linters and collect findings
-            debt_items.extend(self._run_bandit(temp_path))
-            debt_items.extend(self._run_pylint(temp_path))
-            debt_items.extend(self._run_eslint(temp_path))
+            debt_items.extend(self._run_linter(
+                temp_path, "bandit",
+                ["-r", str(temp_path), "-f", "json", "-q"],
+                "bandit",
+            ))
+            debt_items.extend(self._run_linter(
+                temp_path, "pylint",
+                ["--output-format=json", "--disable=C0114,C0115,C0116", str(temp_path)],
+                "pylint", [".py"],
+            ))
+            debt_items.extend(self._run_linter(
+                temp_path, "eslint",
+                [str(temp_path), "--format", "json", "--no-error-on-unmatched-pattern"],
+                "eslint", [".js", ".ts", ".jsx", ".tsx"],
+            ))
 
         # Structure-based checks (tests, CI, large files)
         debt_items.extend(self._check_structure(file_contents))
@@ -105,229 +117,128 @@ class DebtPrioritizer:
             except Exception as e:
                 logger.warning(f"Failed to write {file_path}: {e}")
 
-    def _run_bandit(self, temp_path: Path) -> list[DebtItem]:
-        """Run Bandit security scanner on Python files.
+    def _run_linter(
+        self,
+        temp_path: Path,
+        tool: str,
+        args: list[str],
+        parser: str,
+        file_ext: list[str] | None = None,
+    ) -> list[DebtItem]:
+        """Run a linter and parse results.
 
-        Returns:
-            List of security-related DebtItems from Bandit findings.
+        Args:
+            temp_path: Temp directory with files.
+            tool: Linter executable name.
+            args: Command line arguments.
+            parser: Parser type ('bandit', 'pylint', 'eslint').
+            file_ext: Optional file extensions to check for.
         """
         items: list[DebtItem] = []
 
-        # Check if bandit is installed
-        if not shutil.which("bandit"):
-            logger.warning("Bandit not installed, skipping security scan")
+        if not shutil.which(tool):
+            logger.warning(f"{tool} not installed, skipping scan")
             return items
+
+        if file_ext:
+            files = []
+            for ext in file_ext:
+                files.extend(temp_path.rglob(f"*{ext}"))
+            if not files:
+                return items
 
         try:
             result = subprocess.run(
-                ["bandit", "-r", str(temp_path), "-f", "json", "-q"],
-                capture_output=True,
-                text=True,
-                timeout=120,
-            )
-
-            # Bandit returns non-zero even with findings, so check stdout
-            if result.stdout:
-                data = json.loads(result.stdout)
-                results = data.get("results", [])
-
-                for issue in results:
-                    # Map Bandit severity to our severity
-                    bandit_severity = issue.get("issue_severity", "MEDIUM").upper()
-                    if bandit_severity == "HIGH":
-                        severity = "critical"
-                    elif bandit_severity == "MEDIUM":
-                        severity = "high"
-                    else:
-                        severity = "medium"
-
-                    scores = SEVERITY_SCORES.get(severity, SEVERITY_SCORES["medium"])
-
-                    items.append(DebtItem(
-                        category="security",
-                        title=issue.get("issue_text", "Security Issue"),
-                        description=(
-                            f"{issue.get('test_name', 'Unknown')}: "
-                            f"{issue.get('issue_text', 'Security vulnerability detected')}"
-                        ),
-                        severity=severity,
-                        impact_score=scores["impact"],
-                        likelihood_score=scores["likelihood"],
-                        time_to_failure="immediate" if severity == "critical" else "1-3 months",
-                        effort_to_fix="days",
-                        fix_suggestion=issue.get("more_info", "Review and fix security issue"),
-                        evidence=[
-                            f"{issue.get('filename', 'unknown')}:{issue.get('line_number', 0)}"
-                        ],
-                    ))
-
-        except subprocess.TimeoutExpired:
-            logger.warning("Bandit scan timed out")
-        except json.JSONDecodeError as e:
-            logger.warning(f"Failed to parse Bandit output: {e}")
-        except Exception as e:
-            logger.warning(f"Bandit scan failed: {e}")
-
-        return items
-
-    def _run_pylint(self, temp_path: Path) -> list[DebtItem]:
-        """Run Pylint on Python files for code quality analysis.
-
-        Returns:
-            List of maintainability DebtItems from Pylint findings.
-        """
-        items: list[DebtItem] = []
-
-        # Check if pylint is installed
-        if not shutil.which("pylint"):
-            logger.warning("Pylint not installed, skipping Python quality scan")
-            return items
-
-        # Find Python files
-        py_files = list(temp_path.rglob("*.py"))
-        if not py_files:
-            return items
-
-        try:
-            result = subprocess.run(
-                [
-                    "pylint",
-                    "--output-format=json",
-                    "--disable=C0114,C0115,C0116",  # Skip missing docstrings (too noisy)
-                    str(temp_path),
-                ],
+                [tool] + args,
                 capture_output=True,
                 text=True,
                 timeout=180,
             )
 
-            if result.stdout:
-                findings = json.loads(result.stdout)
+            if not result.stdout:
+                return items
 
-                # Group by message to avoid duplicates
-                seen_messages: set[str] = set()
-
-                for finding in findings:
-                    msg_id = finding.get("message-id", "")
-                    msg = finding.get("message", "")
-                    msg_key = f"{msg_id}:{msg}"
-
-                    if msg_key in seen_messages:
-                        continue
-                    seen_messages.add(msg_key)
-
-                    # Map Pylint type to severity
-                    pylint_type = finding.get("type", "convention")
-                    if pylint_type == "error":
-                        severity = "high"
-                    elif pylint_type == "warning":
-                        severity = "medium"
-                    else:  # convention, refactor
-                        severity = "low"
-
-                    scores = SEVERITY_SCORES.get(severity, SEVERITY_SCORES["medium"])
-
-                    items.append(DebtItem(
-                        category="maintainability",
-                        title=finding.get("symbol", msg_id) or "Code Quality Issue",
-                        description=msg,
-                        severity=severity,
-                        impact_score=scores["impact"],
-                        likelihood_score=scores["likelihood"],
-                        time_to_failure="3-6 months" if severity == "high" else "6+ months",
-                        effort_to_fix="hours",
-                        fix_suggestion=f"Fix {finding.get('symbol', 'issue')} in code",
-                        evidence=[
-                            f"{finding.get('path', 'unknown')}:{finding.get('line', 0)}"
-                        ],
-                    ))
+            data = json.loads(result.stdout)
+            items = getattr(self, f"_parse_{parser}")(data)
 
         except subprocess.TimeoutExpired:
-            logger.warning("Pylint scan timed out")
+            logger.warning(f"{tool} scan timed out")
         except json.JSONDecodeError as e:
-            logger.warning(f"Failed to parse Pylint output: {e}")
+            logger.warning(f"Failed to parse {tool} output: {e}")
         except Exception as e:
-            logger.warning(f"Pylint scan failed: {e}")
+            logger.warning(f"{tool} scan failed: {e}")
 
         return items
 
-    def _run_eslint(self, temp_path: Path) -> list[DebtItem]:
-        """Run ESLint on JavaScript/TypeScript files.
-
-        Returns:
-            List of maintainability DebtItems from ESLint findings.
-        """
-        items: list[DebtItem] = []
-
-        # Check if eslint is installed
-        if not shutil.which("eslint"):
-            logger.warning("ESLint not installed, skipping JS/TS quality scan")
-            return items
-
-        # Find JS/TS files
-        js_files = list(temp_path.rglob("*.js")) + list(temp_path.rglob("*.ts"))
-        js_files += list(temp_path.rglob("*.jsx")) + list(temp_path.rglob("*.tsx"))
-        if not js_files:
-            return items
-
-        try:
-            result = subprocess.run(
-                [
-                    "eslint",
-                    str(temp_path),
-                    "--format", "json",
-                    "--no-error-on-unmatched-pattern",
-                ],
-                capture_output=True,
-                text=True,
-                timeout=180,
+    def _parse_bandit(self, data: dict) -> list[DebtItem]:
+        """Parse Bandit JSON output."""
+        items = []
+        for issue in data.get("results", []):
+            sev = {"HIGH": "critical", "MEDIUM": "high"}.get(
+                issue.get("issue_severity", "").upper(), "medium"
             )
+            scores = SEVERITY_SCORES.get(sev, SEVERITY_SCORES["medium"])
+            items.append(DebtItem(
+                category="security",
+                title=issue.get("issue_text", "Security Issue"),
+                description=f"{issue.get('test_name', 'Unknown')}: {issue.get('issue_text', '')}",
+                severity=sev,
+                impact_score=scores["impact"],
+                likelihood_score=scores["likelihood"],
+                time_to_failure="immediate" if sev == "critical" else "1-3 months",
+                effort_to_fix="days",
+                fix_suggestion=issue.get("more_info", "Review and fix"),
+                evidence=[f"{issue.get('filename', '?')}:{issue.get('line_number', 0)}"],
+            ))
+        return items
 
-            if result.stdout:
-                findings = json.loads(result.stdout)
+    def _parse_pylint(self, findings: list) -> list[DebtItem]:
+        """Parse Pylint JSON output."""
+        items, seen = [], set()
+        for f in findings:
+            key = f"{f.get('message-id', '')}:{f.get('message', '')}"
+            if key in seen:
+                continue
+            seen.add(key)
+            sev = {"error": "high", "warning": "medium"}.get(f.get("type", ""), "low")
+            scores = SEVERITY_SCORES.get(sev, SEVERITY_SCORES["medium"])
+            items.append(DebtItem(
+                category="maintainability",
+                title=f.get("symbol", f.get("message-id", "Issue")),
+                description=f.get("message", ""),
+                severity=sev,
+                impact_score=scores["impact"],
+                likelihood_score=scores["likelihood"],
+                time_to_failure="3-6 months" if sev == "high" else "6+ months",
+                effort_to_fix="hours",
+                fix_suggestion=f"Fix {f.get('symbol', 'issue')}",
+                evidence=[f"{f.get('path', '?')}:{f.get('line', 0)}"],
+            ))
+        return items
 
-                # Group by rule to avoid too many duplicates
-                seen_rules: set[str] = set()
-
-                for file_result in findings:
-                    for message in file_result.get("messages", []):
-                        rule_id = message.get("ruleId", "unknown")
-
-                        if rule_id in seen_rules:
-                            continue
-                        seen_rules.add(rule_id)
-
-                        # Map ESLint severity (2 = error, 1 = warning)
-                        eslint_severity = message.get("severity", 1)
-                        if eslint_severity == 2:
-                            severity = "high"
-                        else:
-                            severity = "medium"
-
-                        scores = SEVERITY_SCORES.get(severity, SEVERITY_SCORES["medium"])
-
-                        items.append(DebtItem(
-                            category="maintainability",
-                            title=rule_id or "ESLint Issue",
-                            description=message.get("message", "Code quality issue"),
-                            severity=severity,
-                            impact_score=scores["impact"],
-                            likelihood_score=scores["likelihood"],
-                            time_to_failure="3-6 months" if severity == "high" else "6+ months",
-                            effort_to_fix="hours",
-                            fix_suggestion=f"Fix ESLint rule: {rule_id}",
-                            evidence=[
-                                f"{file_result.get('filePath', 'unknown')}:{message.get('line', 0)}"
-                            ],
-                        ))
-
-        except subprocess.TimeoutExpired:
-            logger.warning("ESLint scan timed out")
-        except json.JSONDecodeError as e:
-            logger.warning(f"Failed to parse ESLint output: {e}")
-        except Exception as e:
-            logger.warning(f"ESLint scan failed: {e}")
-
+    def _parse_eslint(self, findings: list) -> list[DebtItem]:
+        """Parse ESLint JSON output."""
+        items, seen = [], set()
+        for file_result in findings:
+            for msg in file_result.get("messages", []):
+                rule = msg.get("ruleId", "unknown")
+                if rule in seen:
+                    continue
+                seen.add(rule)
+                sev = "high" if msg.get("severity", 1) == 2 else "medium"
+                scores = SEVERITY_SCORES.get(sev, SEVERITY_SCORES["medium"])
+                items.append(DebtItem(
+                    category="maintainability",
+                    title=rule,
+                    description=msg.get("message", "Code quality issue"),
+                    severity=sev,
+                    impact_score=scores["impact"],
+                    likelihood_score=scores["likelihood"],
+                    time_to_failure="3-6 months" if sev == "high" else "6+ months",
+                    effort_to_fix="hours",
+                    fix_suggestion=f"Fix ESLint: {rule}",
+                    evidence=[f"{file_result.get('filePath', '?')}:{msg.get('line', 0)}"],
+                ))
         return items
 
     def _check_structure(
