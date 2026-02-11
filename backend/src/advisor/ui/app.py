@@ -8,7 +8,7 @@ import streamlit as st
 from datetime import datetime
 
 # Configuration
-API_BASE_URL = "http://127.0.0.1:8001"
+API_BASE_URL = "http://127.0.0.1:8000"
 
 
 def init_session_state():
@@ -164,14 +164,17 @@ def display_results(result: dict):
         st.warning("Analysis completed with warnings")
 
     # Tab view for different audiences
-    tab1, tab2 = st.tabs(["👨‍💻 Technical View", "👔 Executive View"])
+    # Tab view for different audiences + timeline + trends
+    tab1, tab2, tab3, tab4 = st.tabs([
+        "👨‍💻 Technical View", "👔 Executive View",
+        "⏱️ Analysis Timeline", "🔮 Trend Intelligence",
+    ])
 
     with tab1:
         st.subheader("Technical Summary")
         technical_summary = result.get("technical_summary", "No summary available")
         st.markdown(technical_summary)
         
-        # Download button for technical summary
         st.download_button(
             label="📥 Download Technical Report",
             data=generate_markdown_report(result, "technical"),
@@ -185,7 +188,6 @@ def display_results(result: dict):
         executive_summary = result.get("executive_summary", "No summary available")
         st.markdown(executive_summary)
         
-        # Download button for executive summary
         st.download_button(
             label="📥 Download Executive Report",
             data=generate_markdown_report(result, "executive"),
@@ -194,9 +196,69 @@ def display_results(result: dict):
             use_container_width=True,
         )
 
+    with tab3:
+        st.subheader("Analysis Pipeline Timeline")
+        timeline = result.get("timeline")
+        if timeline and isinstance(timeline, dict):
+            total = timeline.get("total_duration_seconds")
+            if total:
+                st.metric("⏱️ Total Duration", f"{total:.1f}s")
+
+            failed = timeline.get("failed_phases", [])
+            if failed:
+                st.error(f"❌ Failed phases: {', '.join(failed)}")
+
+            phases = timeline.get("phases", {})
+            if phases:
+                for name, phase in phases.items():
+                    status_icon = {
+                        "completed": "✅",
+                        "failed": "❌",
+                        "running": "🔄",
+                    }.get(phase.get("status", ""), "⏳")
+
+                    dur = phase.get("duration_seconds")
+                    dur_str = f"{dur:.2f}s" if dur else "—"
+                    err = phase.get("error")
+
+                    col_a, col_b, col_c = st.columns([3, 1, 1])
+                    with col_a:
+                        label = name.replace("_", " ").title()
+                        st.markdown(f"{status_icon} **{label}**")
+                    with col_b:
+                        st.caption(dur_str)
+                    with col_c:
+                        st.caption(phase.get("status", "unknown"))
+
+                    if err:
+                        st.error(f"Error: {err}")
+            else:
+                st.info("No timeline data available.")
+        else:
+            st.info("Timeline tracking not available for this analysis.")
+
+    with tab4:
+        st.subheader("Technology Trend Intelligence")
+        trend_data = result.get("trend_data")
+        if trend_data and isinstance(trend_data, dict):
+            tags = trend_data.get("tags_searched", [])
+            if tags:
+                st.markdown(f"**Technologies searched:** {', '.join(tags)}")
+
+            context = trend_data.get("context", "")
+            if context:
+                st.markdown(context)
+            else:
+                st.info("Trend search ran but no insights were returned.")
+        else:
+            st.info(
+                "Trend intelligence was not available. "
+                "Ensure Serper API key is configured."
+            )
+
     # Analysis metadata
     st.markdown("---")
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     with col1:
         if result.get("analysis_id"):
             st.caption(f"📋 ID: {result['analysis_id']}")
@@ -204,6 +266,11 @@ def display_results(result: dict):
         st.caption(f"🤖 Model: {result.get('model_used', 'Unknown')}")
     with col3:
         st.caption(f"📁 Repository: {result.get('repo_url', 'Unknown')}")
+    with col4:
+        timeline = result.get("timeline", {})
+        total = timeline.get("total_duration_seconds") if timeline else None
+        if total:
+            st.caption(f"⏱️ Duration: {total:.1f}s")
 
 
 def generate_markdown_report(result: dict, report_type: str) -> str:

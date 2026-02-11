@@ -31,6 +31,27 @@ class ModelInfo(BaseModel):
 # Free models available on OpenRouter
 AVAILABLE_MODELS: list[ModelInfo] = [
     ModelInfo(
+        id="openrouter/pony-alpha:free",
+        name="Pony Alpha 200K",
+        context_length=200000,
+        capabilities=[
+            ModelCapability.ANALYSIS,
+            ModelCapability.CODING,
+            ModelCapability.REASONING,
+        ],
+        priority=0,
+    ),
+    ModelInfo(
+        id="arcee-ai/trinity-large-preview:free",
+        name="Arcee Trinity Large",
+        context_length=130000,
+        capabilities=[
+            ModelCapability.ANALYSIS,
+            ModelCapability.CODING,
+        ],
+        priority=1,
+    ),
+    ModelInfo(
         id="tngtech/deepseek-r1t2-chimera:free",
         name="DeepSeek R1T2 Chimera",
         context_length=128000,
@@ -39,7 +60,7 @@ AVAILABLE_MODELS: list[ModelInfo] = [
             ModelCapability.REASONING,
             ModelCapability.CODING,
         ],
-        priority=0,
+        priority=2,
     ),
     ModelInfo(
         id="moonshotai/kimi-k2:free",
@@ -49,17 +70,7 @@ AVAILABLE_MODELS: list[ModelInfo] = [
             ModelCapability.ANALYSIS,
             ModelCapability.SUMMARIZATION,
         ],
-        priority=1,
-    ),
-    ModelInfo(
-        id="arcee-ai/trinity-large-preview:free",
-        name="Arcee Trinity Large",
-        context_length=128000,
-        capabilities=[
-            ModelCapability.ANALYSIS,
-            ModelCapability.CODING,
-        ],
-        priority=2,
+        priority=3,
     ),
     ModelInfo(
         id="z-ai/glm-4.5-air:free",
@@ -69,7 +80,7 @@ AVAILABLE_MODELS: list[ModelInfo] = [
             ModelCapability.ANALYSIS,
             ModelCapability.SUMMARIZATION,
         ],
-        priority=3,
+        priority=4,
     ),
 ]
 

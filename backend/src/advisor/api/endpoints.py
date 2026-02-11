@@ -104,7 +104,6 @@ async def analyze_repository(request: AnalysisRequest) -> AnalysisResponse:
     Note: Access tokens are used ephemerally and never stored.
     """
     try:
-        print(f"DEBUG: Received analysis request for {request.repo_url}")
         logger.info(f"Received analysis request for {request.repo_url}")
         # Create orchestrator with optional token
         orchestrator = AnalysisOrchestrator(
@@ -124,12 +123,21 @@ async def analyze_repository(request: AnalysisRequest) -> AnalysisResponse:
             logger.warning(f"Failed to save to database: {db_error}")
             analysis_id = None
 
+        # Extract per-call timings from timeline
+        api_timings = []
+        if result.timeline:
+            for phase_data in result.timeline.get("phases", {}).values():
+                api_timings.extend(phase_data.get("api_calls", []))
+
         return AnalysisResponse(
             success=True,
             analysis_id=analysis_id,
             message="Analysis completed successfully",
             technical_summary=result.technical_summary,
             executive_summary=result.executive_summary,
+            timeline=result.timeline,
+            api_call_timings=api_timings or None,
+            trend_data=result.trend_data,
         )
 
     except ValueError as e:

@@ -95,8 +95,8 @@ class DataCollector:
             return []
 
         try:
-            # Build search query for trend analysis
-            query = f"{tag} technology trends 2026"
+            # Build search query for trend analysis + version info
+            query = f"{tag} latest version release trends 2026"
 
             headers = {
                 "X-API-KEY": self._settings.serper_api_key,

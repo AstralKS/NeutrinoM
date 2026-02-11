@@ -96,7 +96,7 @@ TECH_KEYWORDS = {
 }
 
 
-class TrendSource(BaseModel):
+class TrendSourceInfo(BaseModel):
     """A single source with link and date."""
 
     title: str = ""
@@ -109,7 +109,7 @@ class TrendSource(BaseModel):
 class TrendInsight(BaseModel):
     """Summarized trend insight for RAG storage.
 
-    Includes source links and dates for user verification.
+    Includes source links, dates, and version info for user verification.
     """
 
     id: str = ""
@@ -128,7 +128,9 @@ class TrendInsight(BaseModel):
         description="Max 3 key opportunities",
     )
     direction: str = ""  # Where the tech is heading
-    sources: list[TrendSource] = Field(
+    latest_version: str = ""  # Latest stable version if detectable
+    version_info: str = ""  # Brief version change notes
+    sources: list[TrendSourceInfo] = Field(
         default_factory=list,
         description="Top sources with links and dates",
     )

@@ -665,11 +665,14 @@ Repository: {repo_name}
 {findings}
 =============================
 
-INSTRUCTIONS:
+CRITICAL RULES:
 1. Synthesize the raw findings into a single voice. Do not say "The frontend reviewer found...". Say "The analysis reveals...".
-2. Be COMPREHENSIVE. The user wants detail. Aim for 2500+ words.
-3. If findings contradict, use your judgment to resolve or note the discrepancy.
-4. Structure the report EXACTLY as follows:
+2. Be COMPREHENSIVE. The user wants maximum detail. Aim for 3000+ words.
+3. Reference files and modules ONLY — NEVER provide code fix suggestions or rewritten code snippets.
+4. When identifying issues, reference the exact file path and module/function name — do NOT write code.
+5. If trend intelligence data is provided, integrate it into the Technology Stack and Strategic sections.
+
+Structure the report EXACTLY as follows:
 
 # Technical Deep Dive: {repo_name}
 
@@ -686,82 +689,97 @@ A 4-5 paragraph overview covering:
 - **Data Flow**: How data moves from input to persistence.
 - **Infrastructure**: CI/CD, Cloud, Containerization setup.
 
-## 3. Feature & Capability Inventory
-- **User-Facing Features**: specific endpoints and UI flows.
-- **Business Logic**: Auth, Payments, Core algorithms.
-- **API Surface**: Key endpoints and their design quality.
+## 3. Feature Progress & Current State
+For each major feature area found in the codebase:
+| Feature Area | Files/Modules | Current State | Maturity |
+|-------------|---------------|---------------|----------|
 
-## 4. Security & Performance Deep Dive
+For each feature, describe:
+- **What exists today**: Reference the specific files/modules.
+- **How mature it is**: Stub / Partial / Complete / Production-ready.
+- **What could be improved**: Reference files where improvements are needed (no code fixes).
+- **Impact of improvement**: Why this matters for the project.
+
+## 4. Technology Trend Intelligence
+If trend data is available in the findings:
+- **What's changing** in each technology the project uses.
+- **Relevance to this project**: How trends affect the current stack.
+- **Upgrade opportunities**: What the project would gain by updating.
+- **Emerging risks**: Technologies that are declining or being replaced.
+
+If no trend data is available, state: "Trend intelligence was not available for this analysis."
+
+## 5. Security & Performance Deep Dive
 - **Security**: Auth patterns, Input validation, Secrets management, Vulnerabilities found.
 - **Performance**: Caching, N+1 queries, Bundle sizes, Database indexing.
 
-## 5. Integration Ecosystem
+## 6. Integration Ecosystem
 - Third-party APIs, SaaS tools, and external services detected.
 - How they are integrated (cleanly abstracted vs tightly coupled).
 
-## 6. Code Quality Assessment
-**6.1. Best Practices & Strengths (Code Quality First)**
-*List the GOOD things first. Show code samples where the developer did well.*
-- [Strength 1] - Description + Evidence
-- [Strength 2] - Description + Evidence
+## 7. Code Quality Assessment
+**7.1. Best Practices & Strengths (Code Quality First)**
+*List the GOOD things first.*
+- [Strength 1] - Description + file/module reference
+- [Strength 2] - Description + file/module reference
 
-**6.2. Code Health Metrics**
+**7.2. Code Health Metrics**
 - Complexity assessment.
 - Test coverage estimation.
 - Documentation quality.
 - Error handling patterns.
 
-**6.3. Quality Issues (Minor/Medium)**
-- Style violations, formatting inconsistencies, minor logic gaps.
+**7.3. Quality Issues (by file reference)**
+| File | Module/Function | Issue | Severity |
+|------|----------------|-------|----------|
+List all issues with file references only — no code fix suggestions.
 
-## 7. Solutions by Severity (The "Fix It" Plan)
-*Group all identifiable technical debt and bugs here, sorted by severity.*
+## 8. Issues by Severity (Reference Only)
+*Group all identifiable technical debt and issues, sorted by severity.*
+*For each issue, reference the file and describe the problem — do NOT provide code fixes.*
 
-### 🔴 Critical Severity (Immediate Fix)
+### 🔴 Critical Severity
 **1. [Issue Title]**
-- **Location**: Specific file/line.
-- **Problem**: specific description of the defect/risk.
-- **Solution**: DETAILED technical fix (code snippet preferred).
-- **Effort**: Estimate (e.g. "2 hours").
+- **Location**: Specific file/module.
+- **Problem**: Description of the defect/risk.
+- **Impact**: What happens if not addressed.
+- **Effort**: Estimate.
 
-### 🟠 High Severity (Fix This Sprint)
-**1. [Issue Title]**
-- **Location**: ...
-- **Problem**: ...
-- **Solution**: ...
-- **Effort**: ...
-
-### 🟡 Medium Severity (Schedule Fix)
+### 🟠 High Severity
 [Same format]
 
-## 8. Strategic Action Plan
-*A forward-looking roadmap for the product.*
+### 🟡 Medium Severity
+[Same format]
+
+## 9. Strategic Action Plan
 
 ### Phase 1: Stabilization (Weeks 1-2)
-- Focus on the Critical/High issues from Section 7.
-- specific steps.
+- Focus on the Critical/High issues from Section 8.
+- Reference specific files to address.
 
 ### Phase 2: Optimization (Weeks 3-4)
-- Performance tuning and refactoring.
-- specific steps.
+- Performance tuning and refactoring targets.
+- Reference specific modules.
 
 ### Phase 3: Growth & Modernization (Month 2+)
-- Architecture capabilities to unlock new features.
-- specific recommendations.
+- Architecture improvements to unlock new features.
+- Trend-informed upgrade recommendations.
 
-## 9. Appendix
+## 10. Appendix
 - List of file types analyzed.
 - Tools detected.
+- Trend sources used (if any).
 
 CONSTRAINTS:
 - Use Markdown formatting.
-- Be specific. Cite filenames.
-- Provide "Solution" code snippets in Section 7.
-- Ensure "Good Practices" come BEFORE "Issues" in Section 6.
+- Be specific. Cite filenames and module names.
+- NEVER provide code fix suggestions or rewritten code — reference files/modules only.
+- Ensure "Good Practices" come BEFORE "Issues" in Section 7.
+- If trend intelligence is present, integrate it throughout the report.
 """
 
-AGGREGATED_EXECUTIVE_PROMPT = """You are a CTO conducting a Due Diligence assessment for a non-technical stakeholder (CEO/VC).
-Your goal is to translate technical findings into Business Risk and Opportunity.
+AGGREGATED_EXECUTIVE_PROMPT = """You are a CTO preparing a Strategic Intelligence Brief for non-technical stakeholders (CEO, investors, business leaders).
+Your goal is to translate technical findings into clear business language about Feature Improvements, Time Savings, and Cost Optimization.
 
 Repository: {repo_name}
 
@@ -769,29 +787,85 @@ Repository: {repo_name}
 {findings}
 ==============================
 
+CRITICAL RULES:
+1. NO technical jargon. Explain everything in business terms.
+2. Focus on: What features exist, what can be improved, how much time/money improvements save.
+3. If trend intelligence data is provided, use it to show market context and competitive positioning.
+4. Quantify everything possible — costs, time, revenue impact.
+
 Structure the report as follows:
 
 # Executive Intelligence Brief: {repo_name}
 
 ## 1. Executive Summary
-- **The Verdict**: One sentence bottom line (Buy/Hold/Sell equivalent).
-- **Business Capability**: What does this software actually DO for the business?
-- **Technical Asset Value**: Is the code an asset or a liability?
+- **The Bottom Line**: One sentence verdict on the product's technical health.
+- **What This Software Does**: Plain language description of the product.
+- **Overall Assessment**: Is the technology an asset or a liability?
 
-## 2. Business Risk Assessment
-- **Stability Risk**: Will it crash?
-- **Scalability Risk**: Can it grow?
-- **Security Risk**: Will we get hacked?
-- **Key Person Risk**: Is the code maintainable by others?
+## 2. Feature Improvement Opportunities
+For each major feature found in the product:
+| Feature | Current State | Improvement Opportunity | Business Impact |
+|---------|--------------|------------------------|----------------|
 
-## 3. Growth & Opportunity
-- **Speed to Market**: How fast can new features be added?
-- **Expansion Paths**: What new capabilities are easy to unlock with this stack?
-- **Cost Optimization**: Are we overspending on infra/services?
+For the top 3-5 improvements:
+**1. [Feature Improvement Name]**
+- **What it is today**: Plain description.
+- **What it could become**: Vision for improvement.
+- **Business impact**: Revenue, users, or efficiency gains.
+- **Time to implement**: Weeks/months estimate.
+- **Cost to implement**: Team size and resources.
 
-## 4. Strategic Recommendations
-- **Immediate Actions**: What to do Monday morning.
-- **Investment Strategy**: Where to put capital (Refactor vs New Features).
+## 3. Time & Cost Optimization
+- **Current operational costs**: Estimated infrastructure and service costs.
+- **Wasted resources**: Where money or developer time is being spent inefficiently.
+- **Quick savings**: Changes that reduce costs this month.
+- **Strategic savings**: Longer-term optimizations.
 
-Keep it professional, insightful, and focused on ROI/Value. Avoid technical jargon unless explained.
+| Optimization | Current Cost | After Optimization | Savings |
+|-------------|-------------|-------------------|--------|
+
+## 4. Market & Competitive Context
+If trend intelligence is available:
+- **Industry direction**: Where the technology market is heading.
+- **Your position**: How this product compares to market standards.
+- **Opportunities**: Trends you can capitalize on.
+- **Risks**: Trends that could make your product obsolete.
+
+If no trend data: "Market trend analysis was not available for this assessment."
+
+## 5. Business Risk Assessment
+- **Stability Risk**: Will the product keep working reliably?
+- **Growth Risk**: Can the product handle 10x more users?
+- **Security Risk**: Is customer data safe?
+- **Team Risk**: Can new developers maintain this product?
+
+For each risk:
+- **Risk level**: Low / Medium / High
+- **Business consequence**: What happens if we don't address it.
+- **Cost to fix**: Budget estimate.
+
+## 6. Strategic Recommendations
+
+### This Week
+Quick wins that improve the product immediately:
+- [Action 1]: Expected result, cost.
+- [Action 2]: Expected result, cost.
+
+### This Month
+Feature improvements and optimizations:
+- [Initiative 1]: Business case, investment, expected return.
+- [Initiative 2]: Business case, investment, expected return.
+
+### This Quarter
+Strategic investments for growth:
+- [Initiative 1]: Transformation expected, investment required.
+- [Initiative 2]: Transformation expected, investment required.
+
+## 7. Investment Summary
+| Priority | Action | Investment | Expected Return | Timeline |
+|----------|--------|-----------|----------------|----------|
+Summarize all recommended investments in one table.
+
+Keep it professional, insightful, and focused on business outcomes.
+Avoid ALL technical jargon — if a technical term must be used, explain it in parentheses.
 """

@@ -5,6 +5,7 @@ Handles API calls, rate limiting, and automatic failover.
 
 import json
 import logging
+import time
 from typing import Any
 
 import httpx
@@ -36,11 +37,24 @@ class OpenRouterClient:
     """
 
     def __init__(self) -> None:
-        """Initialize client with API keys from settings."""
+        """Initialize client with API keys and shared HTTP session."""
         self._settings = get_settings()
         self._api_keys = self._settings.openrouter_api_keys
         self._current_key_index = 0
         self._total_tokens_used = 0
+        self._http_client: httpx.AsyncClient | None = None
+
+    def _get_http_client(self) -> httpx.AsyncClient:
+        """Get or create shared HTTP client (lazy init)."""
+        if self._http_client is None or self._http_client.is_closed:
+            self._http_client = httpx.AsyncClient(timeout=300.0)
+        return self._http_client
+
+    async def close(self) -> None:
+        """Close the shared HTTP client."""
+        if self._http_client and not self._http_client.is_closed:
+            await self._http_client.aclose()
+            self._http_client = None
 
     @property
     def _current_key(self) -> str:
@@ -168,32 +182,42 @@ class OpenRouterClient:
             "max_tokens": max_tokens,
         }
 
-        async with httpx.AsyncClient(timeout=120.0) as client:
-            response = await client.post(
-                OPENROUTER_API_URL,
-                headers=headers,
-                json=payload,
+        client = self._get_http_client()
+        start_time = time.perf_counter()
+
+        response = await client.post(
+            OPENROUTER_API_URL,
+            headers=headers,
+            json=payload,
+        )
+
+        duration_ms = round((time.perf_counter() - start_time) * 1000)
+
+        if response.status_code != 200:
+            raise OpenRouterError(
+                f"API error: {response.text}",
+                status_code=response.status_code,
             )
 
-            if response.status_code != 200:
-                raise OpenRouterError(
-                    f"API error: {response.text}",
-                    status_code=response.status_code,
-                )
+        data = response.json()
 
-            data = response.json()
+        if "error" in data:
+            raise OpenRouterError(f"API error: {data['error']}")
 
-            if "error" in data:
-                raise OpenRouterError(f"API error: {data['error']}")
+        # Track usage
+        usage = data.get("usage", {})
+        self._total_tokens_used += usage.get("total_tokens", 0)
 
-            # Track usage
-            usage = data.get("usage", {})
-            self._total_tokens_used += usage.get("total_tokens", 0)
+        logger.info(
+            f"LLM call to {model} completed in {duration_ms}ms "
+            f"(tokens: {usage.get('total_tokens', '?')})"
+        )
 
-            return {
-                "content": data["choices"][0]["message"]["content"],
-                "usage": usage,
-            }
+        return {
+            "content": data["choices"][0]["message"]["content"],
+            "usage": usage,
+            "duration_ms": duration_ms,
+        }
 
     def _parse_json_response(self, content: str) -> Any:
         """Parse JSON from LLM response, handling markdown code blocks."""

@@ -71,8 +71,9 @@ The **AI Development Advisor** is a sophisticated backend system that analyzes G
 │  │  1. Parse repository URL                                                  │  │
 │  │  2. Fetch repository data ──────────────────────────┐                     │  │
 │  │  3. Run static analysis                             │                     │  │
-│  │  4. Generate LLM summaries (PARALLEL)               │                     │  │
-│  │  5. Return AnalysisRecord                           │                     │  │
+│  │  4. Enrich with trend data (RAG + parallel search)  │                     │  │
+│  │  5. Generate LLM summaries (PARALLEL)               │                     │  │
+│  │  6. Return AnalysisRecord + timeline + trend_data   │                     │  │
 │  └─────────────────────────────────────────────────────┼─────────────────────┘  │
 └────────────────────────────────────────────────────────┼────────────────────────┘
                           │                              │
@@ -82,9 +83,11 @@ The **AI Development Advisor** is a sophisticated backend system that analyzes G
 │   ANALYSIS LAYER    │   │    LLM LAYER        │   │   GITHUB LAYER      │
 ├─────────────────────┤   ├─────────────────────┤   ├─────────────────────┤
 │ • StackDetector     │   │ • OpenRouterClient  │   │ • GitHubClient      │
-│ • ArchitectureAnal. │   │ • Multi-key rotation│   │ • RepositoryParser  │
-│ • RiskAnalyzer      │   │ • Model fallback    │   │                     │
-│ • RecommendEngine   │   │ • Prompt templates  │   │                     │
+│ • ArchitectureAnal. │   │ • Shared httpx      │   │ • StrategicFetcher  │
+│ • RiskAnalyzer      │   │ • Multi-key rotation│   │ • RepositoryParser  │
+│ • RecEngine         │   │ • Per-call timing   │   │                     │
+│ • DeepReview        │   │ • Model fallback    │   │                     │
+│ • ReportAgent (RAG) │   │ • Prompt templates  │   │                     │
 └─────────────────────┘   └─────────────────────┘   └─────────────────────┘
           │                         │                         │
           └─────────────┬───────────┘                         │
@@ -118,9 +121,11 @@ The **AI Development Advisor** is a sophisticated backend system that analyzes G
 |-------|------------|---------|
 | **Frontend** | Streamlit | Interactive web UI |
 | **API** | FastAPI | REST API with async support |
-| **HTTP Client** | httpx | Async HTTP requests |
+| **HTTP Client** | httpx | Shared async client (reused across all LLM calls) |
 | **LLM** | OpenRouter | AI model gateway (free models) |
 | **Database** | Supabase (PostgreSQL) | Analysis storage |
+| **Vector DB** | Supabase (pgvector) | RAG-based trend intelligence cache |
+| **Search** | Serper API | Google Search for version-aware trend data |
 | **Validation** | Pydantic | Data models & settings |
 | **Package Manager** | uv | Fast Python package management |
 
@@ -336,6 +341,13 @@ The **AI Development Advisor** is a sophisticated backend system that analyzes G
 │                                                                             │
 │  asyncio.gather(tech_task, exec_task) → ~40% faster than sequential         │
 │                                                                             │
+│  Trend Context Injection:                                                   │
+│  Reports receive enriched trend data per technology:                        │
+│  • latest_version + version_info                                            │
+│  • Momentum direction (rising/stable/declining)                             │
+│  • Key risks and opportunities                                              │
+│  • Top sources with links                                                   │
+│                                                                             │
 │  System Prompt Constraints:                                                 │
 │  • Base ALL findings on actual evidence                                     │
 │  • Return ONLY what is requested                                            │
@@ -350,6 +362,13 @@ The **AI Development Advisor** is a sophisticated backend system that analyzes G
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
 │  OpenRouterClient.complete(prompt, system_prompt)                           │
+│                                                                             │
+│  ⚡ Shared httpx.AsyncClient:                                               │
+│  ┌─────────────────────────────────────────────────────────────────┐        │
+│  │ Lazy-initialized, reused across ALL calls (no per-request TCP)  │        │
+│  │ Per-call duration_ms tracked and reported in timeline            │        │
+│  │ close() method for graceful shutdown                             │        │
+│  └─────────────────────────────────────────────────────────────────┘        │
 │                                                                             │
 │  Fallback Strategy:                                                         │
 │  ┌─────────────────────────────────────────────────────────────────┐        │
@@ -418,7 +437,24 @@ The **AI Development Advisor** is a sophisticated backend system that analyzes G
 │                                                                             │
 │    analysis_duration_ms: 45000,                                             │
 │    file_count: 127,                                                         │
-│    token_usage: {total: 8500}                                               │
+│    token_usage: {total: 8500},                                              │
+│    timeline: {                                                              │
+│      total_duration_seconds: 48.2,                                          │
+│      phases: {                                                              │
+│        fetch: {duration_ms: 5200, api_calls: [...]},                        │
+│        detect: {duration_ms: 120},                                          │
+│        trend_enrichment: {duration_ms: 8500, api_calls: [                   │
+│          {name: "rag_cache_hit:React", ms: 45},                             │
+│          {name: "fresh_collect:FastAPI", ms: 3200}                          │
+│        ]},                                                                  │
+│        deep_review: {duration_ms: 32000, api_calls: [...]},                 │
+│        report: {duration_ms: 2400}                                          │
+│      }                                                                      │
+│    },                                                                       │
+│    trend_data: {                                                            │
+│      "React": {latest_version: "19.1", momentum: "rising", ...},            │
+│      "FastAPI": {latest_version: "0.115", version_info: "...", ...}         │
+│    }                                                                        │
 │  }                                                                          │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -474,7 +510,16 @@ The **AI Development Advisor** is a sophisticated backend system that analyzes G
 │    "analysis_id": "550e8400-e29b-41d4-a716-446655440000",                   │
 │    "message": "Analysis completed successfully",                            │
 │    "technical_summary": "## 1. Architecture Overview...",                   │
-│    "executive_summary": "## Overview..."                                    │
+│    "executive_summary": "## Overview...",                                   │
+│    "timeline": {"total_duration_seconds": 48.2, "phases": {...}},           │
+│    "api_call_timings": [                                                    │
+│      {"name": "rag_cache_hit:React", "ms": 45, "ts": "..."},               │
+│      {"name": "llm:chunk_backend", "ms": 8200, "ts": "..."}                 │
+│    ],                                                                       │
+│    "trend_data": {                                                          │
+│      "React": {"latest_version": "19.1", "momentum": "rising"},             │
+│      "FastAPI": {"latest_version": "0.115", "version_info": "..."}          │
+│    }                                                                        │
 │  }                                                                          │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -654,12 +699,18 @@ CONSTRAINTS:
 
 | Optimization | Impact |
 |--------------|--------|
-| Parallel file fetching | Faster data collection |
+| Shared `httpx.AsyncClient` | Eliminates per-request TCP/TLS overhead across all LLM calls |
+| Parallel RAG lookups | All tech tag queries run concurrently via `asyncio.gather` |
+| Parallel trend collection | Serper, GitHub, HN fetched in parallel per cache-missed tag |
+| Parallel code review | FE, BE, and Infra agents run simultaneously |
+| Parallel file fetching | `asyncio.gather` for batch GitHub file downloads |
 | Parallel LLM calls | ~40% faster summary generation |
-| Minimal file fetching | Only priority files (max 20) |
-| In-memory static analysis | No external calls |
+| Strategic file selection | Smart 3-pass prioritization (top ~150 files) |
+| In-memory static analysis | No external calls for stack/risk/architecture detection |
 | LRU cached settings | No repeated env parsing |
 | LRU cached database client | Single connection per process |
+| Per-API-call timing | `duration_ms` tracked for every LLM and RAG operation |
+| Reduced stagger | Uncached trend tags fetched with 0.3s delay (down from 1.0s) |
 
 **Typical Analysis Time:** 45-60 seconds (depends on repo size and LLM response time)
 
@@ -677,24 +728,34 @@ backend/
 │   ├── database/
 │   │   ├── __init__.py
 │   │   ├── client.py         # Supabase client
-│   │   ├── models.py         # Pydantic models
+│   │   ├── models.py         # Pydantic models (AnalysisRecord, AnalysisResponse)
 │   │   └── repository.py     # CRUD operations
 │   ├── github/
 │   │   ├── __init__.py
 │   │   ├── client.py         # GitHub API client
+│   │   ├── strategic_fetcher.py  # Smart 3-pass file fetching
 │   │   └── parser.py         # File tree parser
 │   ├── llm/
 │   │   ├── __init__.py
-│   │   ├── client.py         # OpenRouter client
+│   │   ├── client.py         # OpenRouter client (shared httpx, per-call timing)
 │   │   ├── models.py         # Model registry
 │   │   └── prompts.py        # Prompt templates
 │   ├── analysis/
 │   │   ├── __init__.py
-│   │   ├── orchestrator.py   # Main coordinator
-│   │   ├── stack_detector.py # Tech stack detection
-│   │   ├── architecture.py   # Architecture patterns
-│   │   ├── risk_analyzer.py  # Risk detection
-│   │   └── recommendations.py# Action recommendations
+│   │   └── core/
+│   │       ├── orchestrator.py   # Main coordinator + trend enrichment
+│   │       ├── deep_review.py    # Parallel LLM code review (FE/BE/Infra)
+│   │       ├── report_agent.py   # RAG-enhanced report generation
+│   │       ├── timeline.py       # Per-phase + per-API-call timing
+│   │       └── chunk_prompts.py  # Smart chunking for code context
+│   ├── trends/
+│   │   ├── __init__.py
+│   │   ├── trend_master.py       # Orchestrates collection + LLM summarization
+│   │   ├── data_collector.py     # Serper, GitHub, HN parallel fetching
+│   │   ├── aggregator.py         # HN, Dev.to, GitHub Trending aggregation
+│   │   ├── matcher.py            # Stack-to-trend relevance scoring
+│   │   ├── rag_manager.py        # Supabase pgvector storage/retrieval
+│   │   └── models.py             # TrendInsight, TrendSourceInfo, etc.
 │   ├── api/
 │   │   ├── __init__.py
 │   │   └── endpoints.py      # FastAPI routes
@@ -732,9 +793,10 @@ uv run ruff check src/
 
 - [ ] PDF report generation (WeasyPrint)
 - [ ] Webhook support for CI/CD integration
-- [ ] Caching for repeated analyses
 - [ ] Rate limiting
 - [ ] User authentication
+- [x] ~~Caching for repeated analyses~~ — RAG-based trend caching implemented
+- [x] ~~Per-API-call timing~~ — Full timeline with `duration_ms` per call
 
 ---
 

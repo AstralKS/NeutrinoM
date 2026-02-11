@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 
 from advisor.llm.client import OpenRouterClient
 from advisor.trends.data_collector import DataCollector
-from advisor.trends.models import RawTrendData, TrendInsight, TrendSource
+from advisor.trends.models import RawTrendData, TrendInsight, TrendSourceInfo
 from advisor.trends.rag_manager import RAGManager
 
 logger = logging.getLogger(__name__)
@@ -36,16 +36,19 @@ Provide your analysis in the following JSON format:
     "momentum": "rising|stable|declining",
     "risks": ["max 3 key risks or concerns"],
     "opportunities": ["max 3 key opportunities"],
-    "direction": "1-2 sentences on where this tech is heading"
+    "direction": "1-2 sentences on where this tech is heading",
+    "latest_version": "Latest stable version number if detectable (e.g. '21.1.0'), or empty string",
+    "version_info": "Brief note on recent version changes, release date, or upgrade path"
 }}
 
 Focus on:
 - Current direction and maturity
+- Latest stable version and what changed in recent releases
 - Architectural shifts and ecosystem growth
-- Competing alternatives
-- Long-term potential
+- Competing alternatives and market adoption
+- Long-term potential and migration considerations
 
-Be concise - summarize trends, don't list features."""
+Be specific — include version numbers, star counts, and adoption metrics where available."""
 
 
 class TrendMaster:
@@ -177,7 +180,8 @@ class TrendMaster:
             context_parts.append("\n## GitHub Repositories")
             for repo in raw_data.github_repos[:5]:
                 context_parts.append(
-                    f"- {repo.get('name', '')} ({repo.get('stars', 0)} stars): "
+                    f"- {repo.get('name', '')} ({repo.get('stars', 0)} stars, "
+                    f"updated: {repo.get('updated_at', 'N/A')[:10]}): "
                     f"{repo.get('description', '')}"
                 )
 
@@ -218,6 +222,8 @@ class TrendMaster:
                 risks=analysis.get("risks", [])[:3],
                 opportunities=analysis.get("opportunities", [])[:3],
                 direction=analysis.get("direction", ""),
+                latest_version=analysis.get("latest_version", ""),
+                version_info=analysis.get("version_info", ""),
                 sources=sources,
                 sources_count=(
                     len(raw_data.serper_results)
@@ -245,14 +251,14 @@ class TrendMaster:
                 collected_at=raw_data.collected_at,
             )
 
-    def _extract_sources(self, raw_data: RawTrendData) -> list[TrendSource]:
+    def _extract_sources(self, raw_data: RawTrendData) -> list[TrendSourceInfo]:
         """Extract top sources with links and dates."""
-        sources: list[TrendSource] = []
+        sources: list[TrendSourceInfo] = []
 
         # Add web sources
         for item in raw_data.serper_results[:3]:
             sources.append(
-                TrendSource(
+                TrendSourceInfo(
                     title=item.get("title", "")[:80],
                     url=item.get("link", ""),
                     source_type="web",
@@ -264,7 +270,7 @@ class TrendMaster:
         # Add GitHub repos
         for repo in raw_data.github_repos[:3]:
             sources.append(
-                TrendSource(
+                TrendSourceInfo(
                     title=repo.get("name", ""),
                     url=repo.get("url", ""),
                     source_type="github",
@@ -276,7 +282,7 @@ class TrendMaster:
         # Add HN discussions
         for item in raw_data.hn_items[:3]:
             sources.append(
-                TrendSource(
+                TrendSourceInfo(
                     title=item.get("title", "")[:80],
                     url=item.get("url", "") or f"https://news.ycombinator.com/item?id={item.get('objectID', '')}",
                     source_type="hn",

@@ -7,8 +7,9 @@
 The **AI Development Advisor** is a backend system that analyzes GitHub repositories to provide:
 - **Technical Summaries** for engineers (architecture, code quality, security, roadmap)
 - **Executive Summaries** for business leaders (risks, opportunities, action plans)
+- **Trend Intelligence** — version-aware market data enriched via RAG (Supabase pgvector)
 
-Built with **FastAPI** (API) + **Streamlit** (UI) + **OpenRouter** (LLM) + **Supabase** (database).
+Built with **FastAPI** (API) + **Streamlit** (UI) + **OpenRouter** (LLM) + **Supabase** (SQL + pgvector).
 
 ---
 
@@ -49,24 +50,34 @@ backend/
 │   ├── database/          # Database layer
 │   │   ├── __init__.py
 │   │   ├── client.py      # Supabase client factory
-│   │   ├── models.py      # Pydantic models (AnalysisRecord, etc.)
+│   │   ├── models.py      # Pydantic models (AnalysisRecord, AnalysisResponse)
 │   │   └── repository.py  # CRUD operations
 │   ├── github/            # GitHub integration
 │   │   ├── __init__.py
 │   │   ├── client.py      # GitHub API client (metadata, tree, content)
+│   │   ├── strategic_fetcher.py  # Smart 3-pass file fetching
 │   │   └── parser.py      # File tree parser and classification
 │   ├── llm/               # LLM integration
 │   │   ├── __init__.py
-│   │   ├── client.py      # OpenRouter client with multi-key rotation
+│   │   ├── client.py      # OpenRouter client (shared httpx, multi-key rotation)
 │   │   ├── models.py      # Model registry and capabilities
 │   │   └── prompts.py     # Prompt templates (constraint-based)
 │   ├── analysis/          # Intelligence engine
 │   │   ├── __init__.py
-│   │   ├── orchestrator.py    # Main analysis coordinator
-│   │   ├── stack_detector.py  # Technology stack detection
-│   │   ├── architecture.py    # Architecture pattern analysis
-│   │   ├── risk_analyzer.py   # Risk and gap detection
-│   │   └── recommendations.py # Forward-looking recommendations
+│   │   └── core/
+│   │       ├── orchestrator.py    # Main coordinator + trend enrichment
+│   │       ├── deep_review.py     # Parallel LLM code review (FE/BE/Infra)
+│   │       ├── report_agent.py    # RAG-enhanced report generation
+│   │       ├── timeline.py        # Per-phase + per-API-call timing
+│   │       └── chunk_prompts.py   # Smart chunking for code context
+│   ├── trends/            # Trend intelligence (RAG-based)
+│   │   ├── __init__.py
+│   │   ├── trend_master.py    # Orchestrates collection + LLM summarization
+│   │   ├── data_collector.py  # Serper, GitHub, HN parallel fetching
+│   │   ├── aggregator.py      # HN, Dev.to, GitHub Trending aggregation
+│   │   ├── matcher.py         # Stack-to-trend relevance scoring
+│   │   ├── rag_manager.py     # Supabase pgvector storage/retrieval
+│   │   └── models.py          # TrendInsight, TrendSourceInfo, etc.
 │   ├── api/               # FastAPI application
 │   │   ├── __init__.py
 │   │   └── endpoints.py   # API routes (/analyze, /health, etc.)
@@ -74,21 +85,8 @@ backend/
 │       ├── __init__.py
 │       └── app.py         # Main UI application
 ├── tests/                 # Test suite (60 tests)
-│   ├── conftest.py        # Pytest fixtures and mocks
-│   ├── test_analysis.py   # Stack detector tests
-│   ├── test_api.py        # API endpoint tests
-│   ├── test_architecture.py
-│   ├── test_github.py
-│   ├── test_integration.py # Real repo integration tests
-│   ├── test_llm.py
-│   ├── test_orchestrator.py
-│   ├── test_parser.py
-│   ├── test_recommendations.py
-│   └── test_risks.py
 ├── migrations/            # Database migrations
-│   └── 001_create_analysis_records.sql
 ├── scripts/               # Utility scripts
-│   └── test_analysis.py
 ├── pyproject.toml         # Dependencies and project config
 ├── uv.lock                # Lock file
 └── .gitignore
@@ -106,27 +104,36 @@ User Input (GitHub URL)
 FastAPI Endpoint (/analyze)
     ↓
 AnalysisOrchestrator
-    ├─→ GitHubClient (fetch metadata, tree, files)
-    ├─→ RepositoryParser (classify files)
-    ├─→ StackDetector (languages, frameworks, tools)
-    ├─→ ArchitectureAnalyzer (patterns)
-    ├─→ RiskAnalyzer (security, maintainability, etc.)
-    ├─→ RecommendationEngine (priority actions)
-    └─→ OpenRouterClient (generate summaries) [PARALLEL]
+    ├─→ StrategicFetcher (smart 3-pass file retrieval)
+    ├─→ StackDetector + FeatureExtractor + IntegrationInventory
+    ├─→ TrendMaster (per-tag, parallel)  ──┐
+    │     ├─ RAG cache check (pgvector)    │
+    │     ├─ Cache miss → DataCollector     │  Version-aware
+    │     │    ├─ Serper (Google Search)    │  trend data
+    │     │    ├─ GitHub API (releases)     │
+    │     │    └─ Hacker News (Algolia)     │
+    │     ├─ LLM summarization             │
+    │     └─ Store insight back to RAG   ──┘
+    ├─→ DeepReviewOrchestrator (parallel FE/BE/Infra agents)
+    │     └─→ ReportAgent (RAG-enhanced final reports)
+    └─→ Timeline (per-phase + per-API-call timing)
     ↓
-AnalysisRecord (stored in Supabase)
+AnalysisRecord (stored in Supabase SQL)
     ↓
-Response (technical + executive summaries)
+Response (technical + executive summaries + trend_data + api_call_timings)
 ```
 
 ### Key Design Decisions
 
-1. **Clean Architecture** - Separation of concerns with dependency injection
-2. **Async Everything** - httpx + asyncio for non-blocking I/O
-3. **Parallel LLM Calls** - Technical + Executive summaries generated concurrently (~40% faster)
-4. **Multi-Key Rotation** - LLM client rotates through up to 4 API keys with fallback
-5. **Ephemeral Credentials** - GitHub tokens never stored, used only for request
-6. **Constraint-Based Prompts** - Behavioral instructions, not identity roleplay (reduces hallucination)
+1. **Clean Architecture** — Separation of concerns with dependency injection
+2. **Shared httpx Client** — Single `httpx.AsyncClient` reused across all LLM calls (eliminates per-request TCP overhead)
+3. **Parallel Everything** — RAG lookups, trend searches, LLM agents, and file fetches all run via `asyncio.gather`
+4. **RAG-First Trend Flow** — Check pgvector cache → miss → collect fresh data → LLM summarize → store back to RAG
+5. **Version-Aware Trends** — Serper queries and LLM prompts extract `latest_version` + `version_info` per technology
+6. **Per-API-Call Timing** — Every LLM call and RAG operation records `duration_ms` for granular performance visibility
+7. **Multi-Key Rotation** — LLM client rotates through up to 4 API keys with model fallback
+8. **Ephemeral Credentials** — GitHub tokens never stored, used only for request
+9. **Constraint-Based Prompts** — Behavioral instructions, not identity roleplay (reduces hallucination)
 
 ---
 
@@ -213,13 +220,16 @@ Generates prioritized recommendations based on:
 ```python
 class OpenRouterClient:
     async def complete(prompt, system_prompt, temperature) -> dict
+    # Returns: {"content": ..., "usage": ..., "duration_ms": int}
 ```
 
 Features:
+- **Shared `httpx.AsyncClient`** — lazy-initialized, reused across all calls
 - Multi-key rotation (up to 4 keys)
 - Model fallback (primary → secondary)
+- Per-call `duration_ms` tracking
 - Token usage tracking
-- Free model support
+- `close()` method for graceful shutdown
 
 ### 9. Prompts (`llm/prompts.py`)
 
@@ -301,6 +311,9 @@ OPENROUTER_API_KEY_1=sk-or-v1-xxx
 OPENROUTER_API_KEY_2=sk-or-v1-xxx  # Optional
 OPENROUTER_API_KEY_3=sk-or-v1-xxx  # Optional
 OPENROUTER_API_KEY_4=sk-or-v1-xxx  # Optional
+
+# Required for trend data collection
+SERPER_API_KEY=your-serper-api-key
 ```
 
 ---
@@ -329,10 +342,15 @@ uv run pytest tests/ --cov=advisor --cov-report=html
 
 ## Performance Optimizations
 
-1. **Parallel file fetching** - Uses `asyncio.gather` to fetch multiple files concurrently
-2. **Parallel LLM calls** - Technical and Executive summaries generated concurrently
-3. **Minimal file fetching** - Only fetches priority files (configs, key code files)
-4. **Efficient parsing** - Static analysis runs in-memory without external calls
+1. **Shared HTTP Client** — Single `httpx.AsyncClient` reused across all LLM calls (no per-request TCP/TLS overhead)
+2. **Parallel RAG lookups** — All tag queries run concurrently via `asyncio.gather`
+3. **Parallel trend collection** — Serper, GitHub, HN data fetched in parallel per tag
+4. **Parallel code review** — Frontend, Backend, and Infra agents run simultaneously
+5. **Parallel file fetching** — `asyncio.gather` for batch file downloads
+6. **Minimal file fetching** — Strategic 3-pass prioritization (top ~150 files)
+7. **In-memory static analysis** — No external calls for stack/risk/architecture detection
+8. **Per-API-call timing** — Every LLM and RAG call tracked with `duration_ms`
+9. **Reduced stagger** — Uncached trend tag fetches staggered at 0.3s (down from 1.0s)
 
 **Typical analysis time:** ~45-60 seconds (depends on repo size and LLM response time)
 
@@ -367,6 +385,21 @@ class AnalysisRecord(BaseModel):
     analysis_duration_ms: int | None
     file_count: int | None
     token_usage: dict[str, int]
+    timeline: dict[str, Any] | None      # Per-phase + per-API-call breakdown
+    trend_data: dict[str, Any] | None     # Version-aware trend intelligence
+```
+
+### AnalysisResponse (API output)
+```python
+class AnalysisResponse(BaseModel):
+    success: bool
+    analysis_id: UUID | None
+    message: str
+    technical_summary: str | None
+    executive_summary: str | None
+    timeline: dict[str, Any] | None
+    api_call_timings: list[dict[str, Any]] | None  # Per-call latency breakdown
+    trend_data: dict[str, Any] | None               # Enriched trend context
 ```
 
 ### TechStackInfo
@@ -430,9 +463,10 @@ uv run ruff format src/
 
 - [ ] PDF report generation (WeasyPrint)
 - [ ] Webhook support for CI/CD integration
-- [ ] Caching for repeated analyses
 - [ ] Rate limiting
 - [ ] User authentication
+- [x] ~~Caching for repeated analyses~~ — RAG-based trend caching implemented
+- [x] ~~Per-API-call timing~~ — Full timeline with `duration_ms` per call
 
 ---
 

@@ -132,6 +132,8 @@ class AnalysisRecord(BaseModel):
     file_count: int | None = None
     files_analyzed: int | None = None  # Actual files with content fetched
     token_usage: dict[str, int] = Field(default_factory=dict)
+    timeline: dict[str, Any] | None = None  # Phase-level timestamps
+    trend_data: dict[str, Any] | None = None  # Trend intelligence context
 
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
@@ -172,3 +174,6 @@ class AnalysisResponse(BaseModel):
     message: str = ""
     technical_summary: str | None = None
     executive_summary: str | None = None
+    timeline: dict[str, Any] | None = None
+    api_call_timings: list[dict[str, Any]] | None = None
+    trend_data: dict[str, Any] | None = None

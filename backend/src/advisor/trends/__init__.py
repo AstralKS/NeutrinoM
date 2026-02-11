@@ -9,7 +9,7 @@ from advisor.trends.models import (
     TrendItem,
     TrendMatch,
     TrendReport,
-    TrendSource,
+    TrendSourceInfo,
 )
 from advisor.trends.rag_manager import RAGManager
 from advisor.trends.trend_master import TrendMaster
@@ -25,6 +25,6 @@ __all__ = [
     "RAGManager",
     "TrendInsight",
     "RawTrendData",
-    "TrendSource",
+    "TrendSourceInfo",
 ]
 
