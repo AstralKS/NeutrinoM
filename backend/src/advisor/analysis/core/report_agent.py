@@ -30,8 +30,8 @@ class ReportAgent:
         """Lazy-load RAG manager to avoid import errors if not configured."""
         if self._rag is None:
             try:
-                from advisor.trends.rag_manager import RAGManager
-                self._rag = RAGManager()
+                from advisor.trends.rag_store import RAGStore
+                self._rag = RAGStore()
             except Exception as e:
                 logger.warning(f"RAG not available: {e}")
         return self._rag
@@ -167,7 +167,11 @@ class ReportAgent:
         ]
 
         if trends:
-            sections.append(f"# TECHNOLOGY TREND INTELLIGENCE\n{trends}")
+            sections.append(
+                f"# TECHNOLOGY TREND INTELLIGENCE\n"
+                f"Use this data to assess version freshness, competitive risks, and upgrade opportunities.\n\n"
+                f"{trends}"
+            )
 
         if rag_context:
             sections.append(f"# HISTORICAL CONTEXT (FROM RAG)\n{rag_context}")

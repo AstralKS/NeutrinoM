@@ -16,6 +16,7 @@ from advisor.config import get_settings
 from advisor.database.client import get_supabase_client
 from advisor.database.models import AnalysisRecord, AnalysisRequest, AnalysisResponse
 from advisor.database.repository import AnalysisRepository
+from advisor.github.client import GitHubError
 
 logger = logging.getLogger(__name__)
 
@@ -143,6 +144,12 @@ async def analyze_repository(request: AnalysisRequest) -> AnalysisResponse:
     except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e),
+        ) from e
+    except GitHubError as e:
+        http_status = e.status_code or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(
+            status_code=http_status,
             detail=str(e),
         ) from e
     except Exception as e:

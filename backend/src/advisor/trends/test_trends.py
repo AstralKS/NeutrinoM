@@ -1,4 +1,4 @@
-"""Streamlit Test UI for Trend Master.
+"""Streamlit Test UI for Trend Pipeline.
 
 Run with: streamlit run src/advisor/trends/test_trends.py
 """
@@ -12,10 +12,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import streamlit as st
 
-from advisor.trends.trend_master import TrendMaster
+from advisor.trends.pipeline import TrendPipeline
 
 st.set_page_config(
-    page_title="Trend Master Test",
+    page_title="Trend Pipeline Test",
     page_icon="📈",
     layout="wide",
 )
@@ -33,14 +33,14 @@ def run_async(coro):
 
 def main():
     """Main Streamlit app."""
-    st.title("📈 Trend Master Test UI")
-    st.markdown("Test the tech stack trend analysis system.")
+    st.title("📈 Trend Pipeline Test UI")
+    st.markdown("Test the agentic search pipeline.")
 
-    # Initialize TrendMaster
-    if "trend_master" not in st.session_state:
-        st.session_state.trend_master = TrendMaster()
+    # Initialize pipeline
+    if "pipeline" not in st.session_state:
+        st.session_state.pipeline = TrendPipeline()
 
-    tm = st.session_state.trend_master
+    pipeline = st.session_state.pipeline
 
     # Sidebar options
     with st.sidebar:
@@ -55,16 +55,25 @@ def main():
     with col1:
         tag = st.text_input(
             "Enter technology tag",
-            placeholder="e.g., langchain, react, kubernetes",
+            placeholder="e.g., react, django, kubernetes",
         )
     with col2:
-        analyze_btn = st.button("🔍 Analyze", type="primary", use_container_width=True)
+        analyze_btn = st.button(
+            "🔍 Analyze",
+            type="primary",
+            use_container_width=True,
+        )
 
     # Analysis
     if analyze_btn and tag:
         with st.spinner(f"Analyzing trends for '{tag}'..."):
             try:
-                insight = run_async(tm.analyze_tag(tag, force_refresh=force_refresh))
+                insight = run_async(
+                    pipeline.analyze_tag(
+                        tag,
+                        force_refresh=force_refresh,
+                    ),
+                )
                 display_insight(insight)
             except Exception as e:
                 st.error(f"Analysis failed: {e}")
@@ -81,42 +90,60 @@ def main():
             key="query_tag",
         )
     with col2:
-        query_btn = st.button("📖 Query", use_container_width=True)
+        query_btn = st.button(
+            "📖 Query",
+            use_container_width=True,
+        )
 
     if query_btn and query_tag:
-        with st.spinner(f"Querying history for '{query_tag}'..."):
+        with st.spinner(
+            f"Querying history for '{query_tag}'...",
+        ):
             try:
-                insights = run_async(tm.query_trends(query_tag))
+                insights = run_async(
+                    pipeline.query_trends(query_tag),
+                )
                 if insights:
-                    st.success(f"Found {len(insights)} historical records")
-                    for i, insight in enumerate(insights):
-                        with st.expander(f"Record {i + 1} - {insight.collected_at}"):
-                            display_insight(insight)
+                    st.success(
+                        f"Found {len(insights)} records",
+                    )
+                    for i, ins in enumerate(insights):
+                        with st.expander(
+                            f"Record {i + 1} — {ins.collected_at}",
+                        ):
+                            display_insight(ins)
                 else:
-                    st.warning(f"No historical data for '{query_tag}'")
+                    st.warning(
+                        f"No data for '{query_tag}'",
+                    )
             except Exception as e:
                 st.error(f"Query failed: {e}")
 
 
 def display_insight(insight):
     """Display a TrendInsight in the UI."""
-    # Header with momentum indicator
-    momentum_colors = {
+    momentum_icons = {
         "rising": "🟢",
         "stable": "🟡",
         "declining": "🔴",
         "unknown": "⚪",
     }
-    momentum_icon = momentum_colors.get(insight.momentum, "⚪")
+    icon = momentum_icons.get(insight.momentum, "⚪")
 
-    st.markdown(f"### {insight.tag.upper()} {momentum_icon} {insight.momentum.title()}")
+    st.markdown(f"### {insight.tag.upper()} {icon} {insight.momentum.title()}")
     st.caption(f"Collected: {insight.collected_at} | Sources: {insight.sources_count}")
+
+    # Version info
+    if insight.latest_version:
+        st.success(f"**Latest Version:** {insight.latest_version}")
+    if insight.version_info:
+        st.info(f"**Version Info:** {insight.version_info}")
 
     # Direction
     if insight.direction:
         st.info(f"**Direction:** {insight.direction}")
 
-    # Key points
+    # Key points + risks/opportunities
     col1, col2 = st.columns(2)
 
     with col1:
@@ -135,13 +162,16 @@ def display_insight(insight):
             for opp in insight.opportunities:
                 st.markdown(f"- {opp}")
 
-    # Sources section with links
+    # Sources
     if insight.sources:
         st.divider()
         st.markdown("#### 🔗 Sources")
 
-        source_icons = {"web": "🌐", "github": "⭐", "hn": "📰"}
-
+        source_icons = {
+            "web": "🌐",
+            "github": "⭐",
+            "hn": "📰",
+        }
         for src in insight.sources:
             icon = source_icons.get(src.source_type, "🔗")
             date_str = f" ({src.date})" if src.date else ""

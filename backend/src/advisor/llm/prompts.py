@@ -701,10 +701,13 @@ For each feature, describe:
 - **Impact of improvement**: Why this matters for the project.
 
 ## 4. Technology Trend Intelligence
-If trend data is available in the findings:
-- **What's changing** in each technology the project uses.
-- **Relevance to this project**: How trends affect the current stack.
-- **Upgrade opportunities**: What the project would gain by updating.
+(This section IS REQUIRED if "TECHNOLOGY TREND INTELLIGENCE" data is provided above. Otherwise, omit.)
+
+For each major technology found in the stack:
+- **Version Analysis**: Compare the used version vs. the latest stable version (from trend data).
+- **Momentum Check**: Is this tech growing or declining? (Reference trend signals).
+- **Upgrade Opportunities**: specific recommendations to upgrade, including benefits (performance/security) and estimated effort.
+- **Competitive Risk**: Are there newer, better alternatives gaining traction?
 - **Emerging risks**: Technologies that are declining or being replaced.
 
 If no trend data is available, state: "Trend intelligence was not available for this analysis."
@@ -774,12 +777,12 @@ CONSTRAINTS:
 - Use Markdown formatting.
 - Be specific. Cite filenames and module names.
 - NEVER provide code fix suggestions or rewritten code — reference files/modules only.
-- Ensure "Good Practices" come BEFORE "Issues" in Section 7.
+- Ensure "Good Practices" comes BEFORE "Issues" in Section 7.
 - If trend intelligence is present, integrate it throughout the report.
 """
 
-AGGREGATED_EXECUTIVE_PROMPT = """You are a CTO preparing a Strategic Intelligence Brief for non-technical stakeholders (CEO, investors, business leaders).
-Your goal is to translate technical findings into clear business language about Feature Improvements, Time Savings, and Cost Optimization.
+AGGREGATED_EXECUTIVE_PROMPT = """You are a Strategic Technology Advisor creating a briefing for C-Level leadership.
+Your goal is to translate technical reality into Business Impact, Risk, and ROI.
 
 Repository: {repo_name}
 
@@ -788,19 +791,19 @@ Repository: {repo_name}
 ==============================
 
 CRITICAL RULES:
-1. NO technical jargon. Explain everything in business terms.
-2. Focus on: What features exist, what can be improved, how much time/money improvements save.
-3. If trend intelligence data is provided, use it to show market context and competitive positioning.
-4. Quantify everything possible — costs, time, revenue impact.
+1. NO technical jargon without immediate business context.
+2. If "TECHNOLOGY TREND INTELLIGENCE" is present, you MUST use it to benchmark the project against the market.
+3. Be direct and concise. Avoid filler words.
+4. Focus on: What we have -> What it costs (risk/debt) -> What we should do.
 
 Structure the report as follows:
 
 # Executive Intelligence Brief: {repo_name}
 
 ## 1. Executive Summary
-- **The Bottom Line**: One sentence verdict on the product's technical health.
-- **What This Software Does**: Plain language description of the product.
-- **Overall Assessment**: Is the technology an asset or a liability?
+- **The Bottom Line**: One sentence verdict (e.g., "Solid foundation, but aging dependencies pose security risks.").
+- **Competitive Positioning**: (Requires Trend Data) Are we using modern, winning tech or declining legacy tools?
+- **Primary Business Risk**: The single biggest threat to the business from this codebase (e.g., "Scalability limits", "Security vulnerability", "Developer velocity").
 
 ## 2. Feature Improvement Opportunities
 For each major feature found in the product:

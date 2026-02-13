@@ -270,11 +270,28 @@ class AnalysisOrchestrator:
         if not tags:
             return ""
 
+        # Optimization: Cap at top 5 tags to prevent timeout
+        # Priority: Frameworks > Languages > Databases > Tools
+        prioritized = []
+        prioritized.extend([t for t in tech_stack.frameworks if t.lower() in tags])
+        prioritized.extend([t for t in tech_stack.languages if t.lower() in tags])
+        prioritized.extend([t for t in tech_stack.databases if t.lower() in tags])
+        # Deduplicate while keeping order
+        seen = set()
+        final_tags = []
+        for t in prioritized:
+            if t.lower() not in seen:
+                seen.add(t.lower())
+                final_tags.append(t.lower())
+        
+        tags = final_tags[:5]
+
+
         logger.info(f"Searching trends for {len(tags)} technologies: {tags}")
 
         try:
-            from advisor.trends.trend_master import TrendMaster
-            from advisor.trends.rag_manager import RAGManager
+            from advisor.trends.pipeline import TrendPipeline as TrendMaster
+            from advisor.trends.rag_store import RAGStore as RAGManager
 
             rag = RAGManager()
             trend_master = TrendMaster()
@@ -311,44 +328,50 @@ class AnalysisOrchestrator:
                 else:
                     uncached_tags.append(tag)
 
-            # Step 2: Fresh search for uncached tags (collected + summarized + saved to RAG)
+            # Step 2: Fresh search for uncached tags (parallel with semaphore)
             fresh_insights: list[str] = []
             if uncached_tags:
                 logger.info(
                     f"Collecting fresh data for {len(uncached_tags)} tags: {uncached_tags}"
                 )
 
-                async def _search_and_time(tag: str, delay: float):
-                    """Search with minimal stagger, record timing."""
-                    if delay > 0:
-                        await asyncio.sleep(delay)
-                    t0 = time.time()
-                    result = await trend_master.analyze_tag(tag)
-                    ms = int((time.time() - t0) * 1000)
-                    self._timeline.add_api_call(
-                        "trend_search", f"fresh_collect:{tag}", ms,
-                    )
-                    return result
+                # Cap concurrency to 2 tags at a time to avoid rate limits
+                sem = asyncio.Semaphore(2)
 
-                search_tasks = [
-                    _search_and_time(tag, i * 0.3)
-                    for i, tag in enumerate(uncached_tags)
-                ]
-                results = await asyncio.gather(
-                    *search_tasks, return_exceptions=True,
-                )
-                for tag, result in zip(uncached_tags, results):
-                    if isinstance(result, Exception):
-                        logger.warning(f"Trend search failed for '{tag}': {result}")
-                        continue
-                    if result:
-                        insight_text = self._format_insight(tag, result, "fresh")
-                        if insight_text:
-                            fresh_insights.append(insight_text)
+                async def _analyze_tag_safe(tag: str) -> str | None:
+                    async with sem:
+                        try:
+                            t0 = time.time()
+                            # Enforce strict 30s timeout per tag to ensure global responsiveness
+                            result = await asyncio.wait_for(
+                                trend_master.analyze_tag(tag),
+                                timeout=30.0
+                            )
+                            ms = int((time.time() - t0) * 1000)
+                            self._timeline.add_api_call(
+                                "trend_search", f"fresh_collect:{tag}", ms,
+                            )
+                            if result:
+                                return self._format_insight(tag, result, "fresh")
+                        except asyncio.TimeoutError:
+                            logger.warning(f"Trend search timed out for '{tag}'")
+                        except Exception as e:
+                            logger.warning(f"Trend search failed for '{tag}': {e}")
+                    return None
+
+                # Run with global timeout for the whole batch
+                try:
+                    results = await asyncio.wait_for(
+                        asyncio.gather(*[_analyze_tag_safe(t) for t in uncached_tags]),
+                        timeout=40.0  # Global timeout for all tags
+                    )
+                    fresh_insights = [r for r in results if r]
+                except asyncio.TimeoutError:
+                    logger.warning("Global trend search phase timed out")
 
             all_insights = cached_insights + fresh_insights
             if all_insights:
-                return "\n".join(all_insights)
+                return "\n\n".join(all_insights)
             return ""
 
         except ImportError:

@@ -1,30 +1,29 @@
-"""Trend intelligence package initialization."""
+"""Trend intelligence package — agentic search pipeline.
 
-from advisor.trends.aggregator import TrendAggregator
-from advisor.trends.data_collector import DataCollector
-from advisor.trends.matcher import TrendMatcher
+Public API:
+- TrendPipeline: Main entry point for trend analysis
+- TrendMaster: Backward-compat alias for TrendPipeline
+- RAGStore: Vector storage for trend insights
+- RAGManager: Backward-compat alias for RAGStore
+"""
+
 from advisor.trends.models import (
     RawTrendData,
     TrendInsight,
-    TrendItem,
-    TrendMatch,
-    TrendReport,
     TrendSourceInfo,
 )
-from advisor.trends.rag_manager import RAGManager
-from advisor.trends.trend_master import TrendMaster
+from advisor.trends.pipeline import TrendMaster, TrendPipeline
+from advisor.trends.rag_store import RAGStore
+
+# Backward compatibility alias
+RAGManager = RAGStore
 
 __all__ = [
-    "TrendAggregator",
-    "TrendMatcher",
-    "TrendItem",
-    "TrendMatch",
-    "TrendReport",
+    "TrendPipeline",
     "TrendMaster",
-    "DataCollector",
+    "RAGStore",
     "RAGManager",
     "TrendInsight",
-    "RawTrendData",
     "TrendSourceInfo",
+    "RawTrendData",
 ]
-

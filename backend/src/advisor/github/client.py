@@ -102,8 +102,21 @@ class GitHubClient:
                 )
 
             if response.status_code == 403:
+                # Distinguish rate limiting from actual access denial
+                remaining = response.headers.get("x-ratelimit-remaining", "")
+                body_text = response.text.lower()
+
+                if remaining == "0" or "rate limit" in body_text:
+                    reset_at = response.headers.get("x-ratelimit-reset", "")
+                    raise GitHubError(
+                        f"GitHub API rate limit exceeded for {owner}/{repo}. "
+                        f"Reset at: {reset_at}. "
+                        "Tip: set GITHUB_TOKEN in .env to get 5000 req/hr instead of 60.",
+                        status_code=403,
+                    )
                 raise GitHubError(
-                    "Access denied. Private repo requires access token.",
+                    f"Access denied for {owner}/{repo}. "
+                    "If this is a private repo, provide an access token.",
                     status_code=403,
                 )
 
