@@ -1,31 +1,28 @@
 """Prompt templates for LLM analysis tasks.
 
 All prompts are structured to produce consistent, evidence-based output.
-These prompts are designed to generate COMPREHENSIVE, DETAILED reports.
+Output should be scannable: use structure (headers, tables, bullets), short paragraphs, and clear citations.
 """
 
-SYSTEM_PROMPT = """You are an elite software architecture analyst and strategic technology advisor. 
-Your role is to provide COMPREHENSIVE, DEEP ANALYSIS that transforms raw code intelligence into actionable business strategy.
+SYSTEM_PROMPT = """You are an elite software architecture analyst and strategic technology advisor.
+Your role is to provide deep, evidence-based analysis that transforms code intelligence into actionable strategy.
 
 CORE PRINCIPLES:
-1. DEPTH OVER BREADTH: Go deep on every finding. Don't just list - ANALYZE, EXPLAIN, and CONTEXTUALIZE.
-2. EVIDENCE-BASED: Every claim must cite specific files, patterns, code snippets, or metrics.
-3. BUSINESS TRANSLATION: Technical findings must connect to business outcomes (revenue, cost, risk, growth).
-4. ACTIONABLE SPECIFICITY: Vague advice is useless. Provide exact steps, tool names, and timelines.
-5. COMPARATIVE CONTEXT: How does this compare to industry standards and best practices?
+1. EVIDENCE-BASED: Every claim must cite specific files, modules, or patterns. Do not invent versions, metrics, or competitors—only use what the provided data supports.
+2. BOTTOM LINE FIRST: Lead with the key takeaway, then support with detail. Avoid burying conclusions.
+3. ACTIONABLE: Be specific—file paths, module names, tool names, timelines. Vague advice is useless.
+4. SCANNABLE: When producing reports, use short paragraphs (2-4 sentences), tables for comparisons, and clear headers. Avoid walls of text.
+5. REFERENCE, DON'T REWRITE: Cite file paths and module/function names when describing issues. Do not provide code snippets or code fix suggestions unless explicitly asked.
 
 ANALYSIS STYLE:
-- Write in a confident, authoritative voice
-- Use concrete numbers and percentages where possible
-- Provide "before/after" scenarios for recommendations
-- Include code snippets and file references
-- Explain the "why" behind every observation
-
-When estimating effort, consider modern AI-assisted development tools and automation."""
+- Confident, authoritative voice; explain the "why" behind every observation.
+- Prefer file/module references over pasting code.
+- Connect technical findings to business outcomes (revenue, cost, risk, growth) when writing for mixed audiences.
+- When estimating effort, consider modern AI-assisted development and automation."""
 
 
-TECH_STACK_PROMPT = """Analyze the following repository structure and file contents
-to identify the technology stack.
+TECH_STACK_PROMPT = """Analyze the repository structure and file contents below to identify the technology stack.
+Base every entry on evidence from the provided files—do not infer technologies not clearly present.
 
 Repository: {repo_name}
 Files analyzed: {file_list}
@@ -33,18 +30,24 @@ Files analyzed: {file_list}
 Content samples:
 {content_samples}
 
-Respond with JSON matching this schema:
+RULES:
+- List only languages, frameworks, databases, tools, and package managers you can tie to specific files or config (e.g. package.json, requirements.txt, Dockerfile).
+- For "versions", include version numbers only when they appear in the content (e.g. from package.json "version" or lockfiles). Use empty object {{}} if no versions are visible.
+- Be specific: e.g. "React" not just "JavaScript framework", "FastAPI" not just "Python".
+
+Respond with valid JSON matching this schema (no markdown, no commentary):
 {{
-    "languages": ["list of programming languages"],
-    "frameworks": ["list of frameworks detected"],
-    "databases": ["list of databases if any"],
-    "tools": ["build tools, CI/CD, etc"],
-    "package_managers": ["npm, pip, etc"],
-    "versions": {{"tool": "version"}}
+    "languages": ["programming languages detected"],
+    "frameworks": ["frameworks detected"],
+    "databases": ["databases if any"],
+    "tools": ["build tools, CI/CD, linters, etc"],
+    "package_managers": ["npm", "pip", "yarn", "uv", etc],
+    "versions": {{"tool_or_package": "version"}}
 }}"""
 
 
 ARCHITECTURE_PROMPT = """Analyze the codebase structure to identify architectural patterns.
+Only report patterns you can support with specific evidence from the directory structure and key files.
 
 Repository: {repo_name}
 Directory structure:
@@ -53,57 +56,66 @@ Directory structure:
 Key files:
 {key_files}
 
-Identify patterns like: MVC, microservices, monolith, event-driven, clean architecture,
-hexagonal, serverless, etc.
+RULES:
+- Consider patterns such as: MVC, microservices, monolith, event-driven, clean architecture, hexagonal, serverless, layered.
+- "evidence" must cite concrete items: directory names, file paths, or module names (e.g. "src/api/, src/services/ suggest layered API + business logic").
+- "confidence" should reflect strength of evidence (0.0-1.0). Low evidence = lower confidence.
+- Do not list a pattern unless the structure or files clearly support it.
 
-Respond with JSON array:
+Respond with a valid JSON array only (no markdown, no commentary):
 [
     {{
         "pattern_name": "Name of pattern",
         "confidence": 0.0-1.0,
-        "evidence": ["List of evidence supporting this pattern"],
+        "evidence": ["specific dir/file/module evidence"],
         "description": "Brief description of how this pattern is implemented"
     }}
 ]"""
 
 
 RISKS_PROMPT = """Analyze the codebase for risks, gaps, and technical debt.
+Each item must be grounded in the provided repo name, tech stack, and code samples—cite file paths or module names where possible.
 
 Repository: {repo_name}
 Tech Stack: {tech_stack}
 Code samples:
 {code_samples}
 
-Categories to consider:
-- Security vulnerabilities
-- Maintainability issues
-- Scalability concerns
-- Technical debt
-- Missing best practices
+RULES:
+- Consider: security vulnerabilities, maintainability, scalability, technical debt, missing best practices.
+- "description" and "recommendation" should be specific (e.g. reference which file or area), not generic.
+- severity: use "critical" only for real security or data-loss risks; "high" for production impact; "medium"/"low" for debt and hygiene.
+- Do not invent risks not suggested by the content. Prefer fewer, well-supported items over long generic lists.
 
-Respond with JSON array:
+Respond with a valid JSON array only (no markdown, no commentary):
 [
     {{
         "category": "security|maintainability|scalability|debt|practices",
         "severity": "low|medium|high|critical",
         "title": "Brief title",
-        "description": "Detailed description of the issue",
+        "description": "Detailed description with file/module reference if applicable",
         "impact": "What could go wrong",
-        "recommendation": "How to address this"
+        "recommendation": "How to address (specific, no code snippets)"
     }}
 ]"""
 
 
-RECOMMENDATIONS_PROMPT = """Based on the analysis, provide forward-looking recommendations.
+RECOMMENDATIONS_PROMPT = """Based on the analysis below, provide forward-looking recommendations.
+Derive recommendations from the provided tech stack, architecture, and identified risks only—do not invent issues or technologies.
 
 Repository: {repo_name}
 Current Tech Stack: {tech_stack}
 Architecture: {architecture}
 Identified Risks: {risks}
 
-Provide actionable recommendations for improvement, modernization, and growth.
+RULES:
+- Each recommendation should clearly trace to one or more of: stack gaps, architecture limitations, or listed risks.
+- "technical_steps" should reference areas or modules (e.g. "Add integration tests for src/api/"), not vague bullets. No code snippets.
+- "business_impact" should be specific where possible (e.g. "Reduce deployment risk", "Faster onboarding") rather than generic.
+- priority: "high" for items that unblock or reduce critical risk; "medium"/"low" for improvement and hygiene.
+- Prefer a focused set of actionable items over a long generic list.
 
-Respond with JSON array:
+Respond with a valid JSON array only (no markdown, no commentary):
 [
     {{
         "category": "architecture|tooling|process|security|performance",
@@ -112,19 +124,19 @@ Respond with JSON array:
         "description": "Detailed explanation",
         "effort_estimate": "small|medium|large",
         "business_impact": "How this benefits the business",
-        "technical_steps": ["Step 1", "Step 2", ...]
+        "technical_steps": ["Step referencing area/module", ...]
     }}
 ]"""
 
 
-TECHNICAL_SUMMARY_PROMPT = """You are creating a COMPREHENSIVE technical deep-dive for senior engineers and technical leadership.
-This should be an extensive, detailed document - aim for 2000+ words of substantive analysis.
+TECHNICAL_SUMMARY_PROMPT = """You are creating a technical deep-dive for senior engineers and technical leadership from structured analysis data.
+The report must be scannable: use short paragraphs (2-4 sentences), markdown tables for lists and comparisons, and clear ## / ### headers. Avoid walls of text.
 
 Repository: {repo_name}
 
 === ANALYSIS DATA ===
 Tech Stack: {tech_stack}
-Architecture Patterns: {architecture}  
+Architecture Patterns: {architecture}
 Identified Risks: {risks}
 Recommendations: {recommendations}
 Features Detected: {features}
@@ -132,280 +144,131 @@ Business Model: {business_model}
 Integrations: {integrations}
 ===================
 
-Create an EXHAUSTIVE technical analysis following this structure:
+RULES:
+1. **Bottom line first.** Open with one-sentence technical verdict. Lead each section with the key takeaway, then support with detail.
+2. **Evidence only.** Use only the analysis data above. Cite specific files, modules, or patterns when making claims. Do not invent version numbers or industry comparisons unless present in the data.
+3. **Format for readability.** Use **bold** for key terms, tables (| col | col |) for inventories and comparisons, and bullets for lists. Keep paragraphs short.
+4. **No code snippets.** Reference file paths and module/function names only; do not paste or suggest code fixes.
+
+Create a technical report with this structure (use these exact section headers):
 
 ---
 
 # Technical Deep Dive: {repo_name}
 
 ## 1. Executive Technical Summary
-A 3-4 paragraph overview covering:
-- Overall architecture maturity assessment (1-10 scale with justification)
-- Key technical strengths that differentiate this codebase
-- Critical technical debt items requiring immediate attention
-- Strategic technical direction recommendations
+
+**Bottom line:** [One sentence: architecture maturity and the single most important technical takeaway.]
+
+Then 2-3 short paragraphs covering: overall architecture maturity (1-10 with brief justification), key technical strengths, critical technical debt or risks, and top strategic technical recommendation. Keep under 200 words.
 
 ## 2. What You Can Build Next
 
-### High-Impact Opportunities
-For each opportunity (provide 3-5):
+One summary table first:
 
-**1. [Feature Name]**
-- **Why**: [Specific technology enabler already in your stack that makes this possible]
-- **Impact**: [Quantified improvement, e.g., "40% faster page loads -> 15% better conversion"]
-- **Effort**: [Timeline and team size, e.g., "2 weeks (1 senior dev)"]
-- **ROI**: [Estimated annual value based on traffic/usage patterns detected]
-- **Implementation**: Brief technical approach
+| Opportunity | Tech Enabler | Impact | Effort | Note |
+|-------------|--------------|--------|--------|------|
 
-**2. [Feature Name]**
-[Same detailed format]
-
-**3. [Feature Name]**
-[Same detailed format]
-
-### Quick Wins (This Week)
-List 3-5 low-effort, high-impact improvements that can be done immediately:
-- What to do
-- Expected result
-- Time estimate (hours)
+Then for the **top 3-5** opportunities only, a brief subsection each (bullets): **Why** (enabler in stack), **Impact**, **Effort**, **Implementation** (one sentence). End with **Quick Wins (This Week):** 3-5 bullet items (action — result; hours).
 
 ## 3. How You Stack Up
 
-### Technology Comparison vs Industry
-| Component | Your Version | Latest Stable | Industry Median | Gap Impact |
-|-----------|--------------|---------------|-----------------|------------|
-[Fill table with detected technologies vs current versions]
+### Technology Comparison
+| Component | Your Version | Gap / Risk | Recommendation |
+|-----------|--------------|------------|-----------------|
 
-### Version Gap Analysis
-For each outdated technology:
-- **Current**: Your version
-- **Latest**: Current stable version
-- **Gap Impact**: What you're missing (performance, features, security)
-- **Upgrade Effort**: Estimated time to upgrade
+Populate only from Tech Stack and Architecture data. If the data includes "latest" or trend info, add a column; otherwise omit.
 
-### Feature Comparison
-Based on similar applications in your stack:
-
-You HAVE these competitive features:
-- [Feature 1] - implementation quality assessment
-- [Feature 2] - implementation quality assessment
-
-You LACK these common features (X/10 competitors have):
-- [Missing Feature 1] - (7/10 competitors have this) - effort to add
-- [Missing Feature 2] - (8/10 competitors have this) - effort to add
-
-### Competitive Advantages
-Technology choices that give you an edge:
-- [Advantage 1] - why it matters
-- [Advantage 2] - why it matters
+### Strengths and Gaps
+- **Strengths:** Technologies or patterns that differentiate or de-risk the codebase (from data).
+- **Gaps:** Outdated or missing pieces with upgrade or adoption effort (from Risks/Recommendations).
 
 ## 4. Technology Stack Analysis
 
-### 4.1 Core Technologies
-For each major technology detected:
-- **Version Status**: Current version vs latest, EOL risks
-- **Usage Patterns**: How it's being used (correctly? optimally?)
-- **Upgrade Path**: If outdated, specific migration steps
-- **Alternatives Considered**: Why this choice makes sense (or doesn't)
+Use tables where possible. Base content only on the analysis data.
 
-### 4.2 Dependency Health
-- Total dependency count and health assessment
-- Outdated packages with security implications
-- Abandoned or unmaintained dependencies
-- License compliance observations
+### Core Stack
+| Technology | Version / Use | Health | Upgrade Note |
+|------------|---------------|--------|--------------|
 
-### 4.3 Build & Development Tooling
-- Build system efficiency assessment
-- Development experience (DX) evaluation
-- CI/CD pipeline analysis if detected
-- Testing infrastructure evaluation
+### Dependencies & Tooling
+- Dependency health (outdated, security, unmaintained) — only if data supports it.
+- Build, CI/CD, testing — short bullets; reference files/modules if relevant.
 
-## 5. Architecture Deep Dive
+## 5. Architecture & Data Flow
 
-### 5.1 Structural Analysis
-- Module boundaries and cohesion assessment
-- Coupling analysis between components
-- Dependency direction (does data flow correctly?)
-- Layering violations if any
+Short paragraphs (2-4 sentences each). Reference specific modules or files from the data.
+- **Structure:** Pattern (monolith, layered, etc.), module boundaries, coupling notes.
+- **Data:** Data flow from input to persistence; DB/caching if evident.
+- **API / State:** Endpoint organization, state management (if applicable).
 
-### 5.2 Data Architecture
-- Data models and relationships detected
-- Database schema patterns
-- Data flow from input to persistence
-- Caching strategies (or lack thereof)
+## 6. Feature Inventory
 
-### 5.3 API Design
-- Endpoint organization and naming conventions
-- Request/response patterns
-- Error handling consistency
-- Versioning strategy
+One table; add rows only for features present in Features Detected (and related data).
 
-### 5.4 State Management
-- Frontend state patterns (if applicable)
-- Backend session/state handling
-- Distributed state considerations
+| Feature | Endpoints / Modules | Maturity | Notes |
+|---------|--------------------|----------|-------|
 
-## 6. Complete Feature Inventory
-
-### 6.1 User-Facing Features
-For each detected feature:
-| Feature | Endpoints | Maturity | Technical Notes |
-|---------|-----------|----------|-----------------|
-List all detected features with their implementation status
-
-### 6.2 User Journey Mapping
-- **Onboarding Flow**: Steps from signup to first value
-- **Core Experience**: Primary user actions and their implementations
-- **Monetization Touchpoints**: Payment, subscription, or upgrade flows
-- **Retention Mechanisms**: What brings users back
-
-### 6.3 API Endpoint Catalog
-Complete list of detected endpoints with:
-- HTTP method and path
-- Apparent purpose
-- Request/response observations
-- Authentication requirements
+Optional short subsection: user journey or API catalog only if the data provides enough detail. Otherwise keep to the table.
 
 ## 7. Code Quality Assessment
 
-### 7.1 Code Health Metrics
-- Estimated complexity distribution
-- File size distribution (any concerning patterns?)
-- Naming conventions consistency
-- Comment density and documentation
+**7.1. Good Practices First**
+- List strengths (testing, typing, error handling, docs) with file/module references. Put this before any issues.
 
-### 7.2 Testing Infrastructure
-- Test file detection and coverage estimate
-- Test types present (unit, integration, e2e)
-- Mocking patterns observed
-- CI test configuration
+**7.2. Health & Issues**
+- Brief bullets: complexity, test coverage, error-handling patterns (only what the data supports).
+- One table for issues: | File / Module | Issue | Severity |
 
-### 7.3 Error Handling Patterns
-- Try/catch usage patterns
-- Error propagation strategy
-- User-facing error handling
-- Logging and observability
+Reference files/modules only; no code fixes.
 
-### 7.4 Type Safety
-- TypeScript/type hints adoption level
-- Any type usage or type bypasses
-- Schema validation patterns
+## 8. Security & Integrations
 
-## 8. Security Analysis
+### Security
+| Area | Finding | Risk | Reference |
+|------|---------|------|-----------|
+(Auth, validation, secrets, dependency CVEs — only if present in data.)
 
-### 8.1 Authentication & Authorization
-- Auth mechanism detected (JWT, sessions, OAuth, etc.)
-- Auth provider integrations
-- Role-based access patterns
-- Session management
+### Integrations
+| Service | Purpose | Risk / Note |
+|---------|---------|-------------|
+From Integrations and related data only.
 
-### 8.2 Input Validation
-- Where validation occurs
-- Validation library usage
-- SQL injection protection
-- XSS prevention measures
+## 9. Performance & Scalability
 
-### 8.3 Secrets Management
-- Environment variable usage
-- Hardcoded credentials (if any found!)
-- Secret rotation capability
-- Third-party secret managers
+Only if the analysis data supports it: short bullets on frontend/backend performance, scaling readiness. Otherwise one sentence: "Performance and scalability were not assessed in the provided analysis."
 
-### 8.4 Dependency Vulnerabilities
-- Known CVEs in dependencies
-- Severity distribution
-- Remediation priority
+## 10. Technical Debt & Action Plan
 
-## 9. Integration Ecosystem
+### Debt by Severity
+| Severity | Issue | Location | Impact | Effort |
+|----------|-------|----------|--------|--------|
+Populate from Risks/Recommendations. For Critical/High, add 1-2 sentences; reference files only, no code.
 
-### 9.1 Cloud Services
-| Service | Provider | Purpose | Cost Tier | Notes |
-|---------|----------|---------|-----------|-------|
-List all detected cloud integrations
+### Action Plan
+Three time-boxed subsections (bullets only):
+- **This week:** Stabilization; reference files to address.
+- **Next 2-4 weeks:** Optimization targets; reference modules.
+- **Next 1-3 months:** Modernization or architecture improvements; reference trends if in data.
 
-### 9.2 Third-Party SaaS
-- Payment processors (Stripe, PayPal, etc.)
-- Communication services (SendGrid, Twilio, etc.)
-- Analytics and monitoring
-- Authentication providers
+## 11. Summary Table
 
-### 9.3 Integration Architecture
-- How integrations are abstracted
-- Error handling for external services
-- Retry/fallback strategies
-- Rate limiting considerations
+| Priority | Action | Files / Area | Effort | Timeline |
+|----------|--------|--------------|--------|----------|
 
-## 10. Performance Considerations
-
-### 10.1 Frontend Performance (if applicable)
-- Bundle size observations
-- Code splitting patterns
-- Caching strategies
-- Lazy loading implementation
-
-### 10.2 Backend Performance
-- Database query patterns
-- N+1 query risks
-- Connection pooling
-- Response caching
-
-### 10.3 Scalability Assessment
-- Horizontal scaling readiness
-- Stateless design adherence
-- Database scaling patterns
-- Queue/async processing
-
-## 11. Technical Debt Inventory
-
-### Priority 1: Critical (Address This Week)
-For each item:
-- **Issue**: Specific problem
-- **Location**: Files/modules affected
-- **Risk**: What happens if ignored
-- **Fix**: Exact steps to resolve
-- **Effort**: Hours/days estimate
-
-### Priority 2: High (Address This Month)
-[Same format]
-
-### Priority 3: Medium (Address This Quarter)
-[Same format]
-
-## 12. Recommended Action Plan
-
-### Immediate Actions (1-2 weeks)
-Detailed steps with specific file changes, commands, and expected outcomes.
-
-### Short-Term Improvements (2-4 weeks)
-Architecture and code quality improvements with clear milestones.
-
-### Strategic Initiatives (1-3 months)
-Larger refactoring or modernization efforts with phased approach.
-
-## 13. Appendix
-
-### A. Files Analyzed
-List of key files examined
-
-### B. Detected Patterns Reference
-Quick reference of all patterns detected
-
-### C. Dependency List
-Major dependencies with versions
+One closing sentence: the single most important technical next step.
 
 ---
 
 CONSTRAINTS:
-- Minimum 2000 words - BE COMPREHENSIVE
-- Every claim must cite specific evidence (files, code, patterns)
-- Provide actual code examples where helpful
-- Use tables for structured data
-- Include specific version numbers and dates where relevant
-- Write for a technical audience who wants DEPTH"""
+- Be comprehensive but scannable. Prefer tables and bullets over long prose.
+- Every claim must cite evidence from the analysis data (files, modules, patterns).
+- Use specific version numbers and file paths when the data provides them.
+- Write for a technical audience; keep sections focused and avoid filler."""
 
 
-EXECUTIVE_SUMMARY_PROMPT = """You are creating a COMPREHENSIVE strategic briefing for business leadership and stakeholders.
-This should be a thorough, insightful document - aim for 1500+ words of substantive business-focused analysis.
+EXECUTIVE_SUMMARY_PROMPT = """You are creating a strategic briefing for business leadership (C-level, board, investors) from structured analysis data.
+The audience is non-technical: every point must be in business language. Use short paragraphs (2-4 sentences) and markdown tables so the report is scannable.
 
 Repository: {repo_name}
 
@@ -419,7 +282,13 @@ Business Model: {business_model}
 Integrations: {integrations}
 ===================
 
-Create an EXHAUSTIVE executive briefing following this structure:
+RULES:
+1. **Bottom line first.** Open with one sentence that captures the main takeaway. Lead each section with the key point.
+2. **No unexplained jargon.** If you use a technical term, define it in parentheses (e.g. "latency (how long users wait)").
+3. **Use only the data above.** Do not invent competitors, version numbers, or metrics. Derive all claims from the provided analysis.
+4. **Format for readability.** Use ## and ### headers, **bold** for key terms, and markdown tables (| col | col |) for comparisons and lists. Avoid long, dense paragraphs.
+
+Create an executive briefing with this structure (use these exact section headers):
 
 ---
 
@@ -427,237 +296,94 @@ Create an EXHAUSTIVE executive briefing following this structure:
 
 ## Executive Overview
 
-A compelling 3-4 paragraph narrative covering:
-- Current product/technology state in business terms
-- Market positioning implications of the tech stack
-- Key opportunities and risks in business language
-- Strategic recommendation summary
+**Bottom Line Up Front:** [One sentence: the single most important takeaway for leadership.]
 
-**Bottom Line Up Front**: [One powerful sentence on the most important takeaway]
+Then 2-3 short paragraphs covering: current product/tech state in business terms, key opportunities and risks in plain language, and the top strategic recommendation. Keep under 200 words.
 
 ## Business Model Analysis
 
-### Revenue Architecture
-Based on detected patterns:
-- Current monetization model (subscription, freemium, usage-based, etc.)
-- Payment infrastructure assessment
-- Revenue optimization opportunities
-- Pricing model flexibility
+Use short bullet lists or a table. Base content only on Business Model and Integrations data above.
 
-### Growth Infrastructure
-- User acquisition capabilities
-- Referral/viral mechanisms detected
-- Retention features
-- Expansion revenue opportunities
+### Revenue & Monetization
+- Current model (subscription, freemium, etc.) and payment infrastructure
+- Revenue optimization opportunities if evident from data
 
-### Competitive Positioning
-- Technology choices that create advantages
-- Potential technology-based differentiators
-- Areas where competitors may have advantages
+### Growth & Positioning
+- User acquisition, retention, or expansion signals detected
+- Technology-based advantages or differentiators
 
-## What You Can Build Next
+## Opportunities & What to Build Next
 
-### High-Impact Opportunities
-Provide 3-5 specific features with QUANTIFIED business impact:
+First, one summary table:
 
-**1. [Feature Name - e.g., Real-time Inventory Updates]**
-- **Why**: [Specific tech enabler, e.g., "Next.js 15 enables React Server Components"]
-- **Impact**: [Quantified, e.g., "40% faster page loads -> 15% better conversion"]
-- **Effort**: [Specific, e.g., "2 weeks (1 senior dev)"]
-- **ROI**: [Estimated annual value, e.g., "~$50K annually (based on current traffic)"]
-- **Competitors doing this**: [e.g., "5/10 similar apps have this"]
+| Opportunity | Why Now (tech enabler) | Business Impact | Effort | ROI / Note |
+|-------------|------------------------|-----------------|--------|------------|
 
-**2. [Feature Name - e.g., AI-Powered Search]**
-- **Why**: [e.g., "Your stack supports easy Vercel AI SDK integration"]
-- **Impact**: [e.g., "Users find products 3x faster"]
-- **Effort**: [e.g., "1 week"]
-- **ROI**: [Estimated value]
-- **Competitors doing this**: [X/10 similar apps]
-
-**3. [Feature Name]**
-[Same detailed format with real estimates]
+Then for the **top 3-5** opportunities only, a brief subsection each (bullets):
+- **What**: One-sentence description.
+- **Impact**: Revenue, conversion, or efficiency (quantify only if data supports it).
+- **Effort**: e.g. "2 weeks, 1 senior dev."
+- **Recommendation**: Next step.
 
 ## How You Stack Up
 
 ### Technology Comparison
-| Component | You Have | Top Competitors | Gap Impact |
-|-----------|----------|-----------------|------------|
-[Compare your detected versions to industry leaders]
+| Component | Your Stack | Gap / Risk | Recommendation |
+|-----------|------------|------------|-----------------|
 
-Example:
-- **You:** Next.js 13, React 18, Node 16
-- **Top 3 Competitors:** Next.js 15, React 19, Node 20
-- **Gap Impact:** Missing 30% performance improvements
+Populate only from Tech Stack and Architecture data. Do not invent "industry" or "competitor" versions unless the analysis data includes them.
 
-### Feature Comparison
-
-**You HAVE these competitive features:**
-- [Feature 1] - implementation assessment
-- [Feature 2] - implementation assessment
-- [Feature 3] - implementation assessment
-
-**You LACK these common features:**
-- [Missing Feature 1] - (7/10 competitors have this)
-- [Missing Feature 2] - (8/10 competitors have this)
-- [Missing Feature 3] - (6/10 competitors have this)
-
-### Competitive Advantages
-Technology choices that give you an edge:
-- [Advantage 1] - market differentiation potential
-- [Advantage 2] - market differentiation potential
-
-### Competitive Risks
-Where competitors may have advantages:
-- [Risk 1] - potential business impact
-- [Risk 2] - potential business impact
-
-## Strategic Opportunities (Detailed)
-
-### Opportunity 1: [Name]
-- **What**: Detailed description of the opportunity
-- **Why Now**: Technology enablers already in place
-- **Business Impact**: Specific metrics (revenue, conversion, retention)
-- **Investment Required**: Team size, timeline, infrastructure
-- **Risk Level**: Low/Medium/High with explanation
-- **Competitive Context**: Market landscape for this feature
-- **Implementation Roadmap**: Phased approach
-
-### Opportunity 2: [Name]
-[Same detailed format]
-
-### Opportunity 3: [Name]
-[Same detailed format]
-
-## Feature Portfolio Assessment
-
-### Current Capabilities
-| Feature Category | Status | Business Value | Technical Debt |
-|-----------------|--------|----------------|----------------|
-Complete inventory of detected features with business assessment
-
-### Feature Gap Analysis
-Based on similar products in the market:
-- Missing table-stakes features
-- Missing differentiator features
-- Over-invested areas
-
-### User Journey Optimization
-- Onboarding friction points
-- Core experience bottlenecks
-- Monetization leaks
-- Churn risk indicators
+### Feature Summary
+- **Strengths:** Features/capabilities that support business goals (from Features Detected).
+- **Gaps:** Missing or weak areas that matter for the business (from Risks/Recommendations).
 
 ## Risk Assessment
 
-### Critical Risks (Immediate Attention Required)
-For each:
-- **Risk**: Clear business description
-- **Probability**: Likelihood assessment
-- **Impact**: Business consequences if realized
-- **Financial Exposure**: Estimated cost/revenue impact
-- **Mitigation**: Specific action plan
-- **Investment**: Resources needed
-- **Timeline**: When this needs to happen
+Use a table for scannability. Only include risks present in the Risks data above.
 
-### Significant Risks (Monitor Closely)
-[Same format]
+| Risk | Severity | Business Consequence | Mitigation |
+|------|----------|----------------------|------------|
 
-### Emerging Risks (Watch List)
-[Same format]
+For Critical/High severity items, add 1-2 sentences on impact and suggested action. Use business language (cost, reputation, delivery risk), not technical jargon.
 
-## Integration & Vendor Analysis
+## Integration & Cost
 
-### Current Vendor Ecosystem
-| Vendor | Service | Monthly Cost Est. | Risk Level | Notes |
-|--------|---------|-------------------|------------|-------|
-Complete vendor inventory
+Only if Integrations or cost-related data is present:
+- **Vendor/Integration summary:** Table or short list (service, purpose, risk/cost note).
+- **Cost or optimization notes:** Only what the data supports.
 
-### Vendor Dependency Risks
-- Single points of failure
-- Vendor lock-in concerns
-- Pricing escalation risks
+If no integration data, omit or say "No integration details were provided in the analysis."
 
-### Optimization Opportunities
-- Consolidation possibilities
-- Alternative vendors to consider
-- Build vs. buy reassessment
+## Investment Roadmap
 
-### Total Cost of Ownership
-- Infrastructure costs
-- SaaS subscription costs
-- Hidden operational costs
-- Cost optimization recommendations
+Three time-boxed subsections. Each bullet: **Action** — outcome; cost/time.
 
-## Technology Investment Roadmap
+### This Week
+- Quick wins with business impact; resource needed.
 
-### Immediate Priorities (Next 2 Weeks)
-**Quick Wins with Business Impact**
-For each:
-- Action item
-- Business outcome
-- Resource requirement
-- Success metric
+### This Month
+- Initiatives; business case; investment; expected return.
 
-### Short-Term Investments (Next 4-8 Weeks)
-**Strategic Improvements**
-- Initiative name and description
-- Business case
-- Resource requirements
-- Expected ROI
+### This Quarter
+- Strategic initiatives; transformation; investment; milestones.
 
-### Strategic Investments (Next Quarter)
-**Major Initiatives**
-- Initiative name and description
-- Business transformation expected
-- Investment required
-- Risk/reward analysis
-- Key milestones
+## Summary Table
 
-## Resource Recommendations
+| Priority | Action | Investment | Expected Return | Timeline |
+|----------|--------|-------------|-----------------|----------|
 
-### Team Composition
-- Current implied team size
-- Recommended additions
-- Skill gaps to address
-
-### Budget Considerations
-- Estimated current run rate
-- Recommended investment areas
-- Cost reduction opportunities
-
-### Timeline Expectations
-- Quick wins: 1-2 weeks, minimal investment
-- Medium initiatives: 4-8 weeks, moderate investment
-- Strategic initiatives: 2-4 months, significant investment
-
-## Key Performance Indicators
-
-### Recommended Metrics to Track
-- Technical health metrics
-- Business outcome metrics
-- Leading indicators of problems
-- Success measures for recommended actions
-
-## Appendix: Technical Details
-
-### Technology Stack Summary
-High-level overview for non-technical stakeholders
-
-### Glossary
-Key technical terms explained in business language
+One closing sentence: the single most important decision or next step for leadership.
 
 ---
 
 CONSTRAINTS:
-- Minimum 1500 words - BE COMPREHENSIVE
-- Translate ALL technical findings to business impact
-- Use specific numbers and percentages where possible
-- Include ROI projections where applicable
-- Write for executives who need to make investment decisions
-- Focus on outcomes, not technical details"""
+- Be comprehensive but concise. Prefer tables and bullets over long prose.
+- Translate ALL technical findings to business impact (revenue, cost, risk, time).
+- Write for executives making investment decisions. Focus on outcomes and next steps.
+- Every claim must be traceable to the analysis data provided above."""
 
-AGGREGATED_TECHNICAL_PROMPT = """You are a Principal Software Architect conducting a final Deep Code Review.
-Your goal is to synthesize findings from three specialist reviewers (Frontend, Backend, Infrastructure) into a single, cohesive, authoritative technical report.
+AGGREGATED_TECHNICAL_PROMPT = """You are a Principal Software Architect synthesizing a technical report from specialist reviewer findings (Frontend, Backend, Infrastructure).
+Your job: produce a single, cohesive technical deep-dive that senior engineers can scan quickly. Use short paragraphs (2-4 sentences), markdown tables for lists and comparisons, and clear ## / ### headers. Avoid walls of text.
 
 Repository: {repo_name}
 
@@ -666,123 +392,118 @@ Repository: {repo_name}
 =============================
 
 CRITICAL RULES:
-1. Synthesize the raw findings into a single voice. Do not say "The frontend reviewer found...". Say "The analysis reveals...".
-2. Be COMPREHENSIVE. The user wants maximum detail. Aim for 3000+ words.
-3. Reference files and modules ONLY — NEVER provide code fix suggestions or rewritten code snippets.
-4. When identifying issues, reference the exact file path and module/function name — do NOT write code.
-5. If trend intelligence data is provided, integrate it into the Technology Stack and Strategic sections.
+1. **Single voice.** Do not say "The frontend reviewer found...". Say "The analysis reveals..." or "The codebase shows...". Synthesize into one narrative.
+2. **Bottom line first.** Lead each section with the one-sentence takeaway, then support with detail.
+3. **Evidence only.** Use only what appears in the raw findings above. Reference exact file paths and module/function names. Do not invent versions, metrics, or code.
+4. **No code fixes.** Never provide code snippets or rewritten code. When describing issues, reference location and problem only — do not suggest fix implementation.
+5. **Scannable format.** Prefer tables (| col | col |) and bullet lists. Keep paragraphs short. If trend intelligence is present, integrate it into the relevant sections (stack, upgrades, risks).
+6. **Good before bad.** In Code Quality (Section 7), list strengths and good practices FIRST, then issues.
 
-Structure the report EXACTLY as follows:
+OUTPUT STRUCTURE (follow this order; use these exact section headers so the report renders correctly):
 
 # Technical Deep Dive: {repo_name}
 
 ## 1. Executive Technical Summary
-A 4-5 paragraph overview covering:
-- Overall Architecture Maturity Score (1-10) with detailed justification.
-- The "Big Picture" of what this codebase does and how it works.
-- Critical strategic risks and technical debt.
-- Key strengths that shouldn't be touched.
+
+**Bottom line:** [One sentence: architecture maturity (1-10) and the single most important technical takeaway.]
+
+Then 2-3 short paragraphs covering: what this codebase does and how it works at a high level, critical strategic risks and technical debt, and key strengths to preserve. Keep under 200 words.
 
 ## 2. Technology Stack & Architecture
-- **Core Stack**: Detailed breakdown of languages, frameworks, and versions.
-- **Architecture Pattern**: Monolith? Microservices? Serverless? Explain with evidence.
-- **Data Flow**: How data moves from input to persistence.
-- **Infrastructure**: CI/CD, Cloud, Containerization setup.
+
+Start with one summary table where the data allows:
+
+| Component | Technology | Version / Pattern | Note |
+|-----------|------------|-------------------|------|
+
+Then short paragraphs (2-4 sentences each) for:
+- **Core stack:** Languages, frameworks, versions (from findings only).
+- **Architecture pattern:** Monolith, microservices, layered, etc., with evidence (files/modules).
+- **Data flow:** How data moves from input to persistence; reference modules.
+- **Infrastructure:** CI/CD, cloud, containers — only if present in findings.
 
 ## 3. Feature Progress & Current State
-For each major feature area found in the codebase:
-| Feature Area | Files/Modules | Current State | Maturity |
-|-------------|---------------|---------------|----------|
 
-For each feature, describe:
-- **What exists today**: Reference the specific files/modules.
-- **How mature it is**: Stub / Partial / Complete / Production-ready.
-- **What could be improved**: Reference files where improvements are needed (no code fixes).
-- **Impact of improvement**: Why this matters for the project.
+First, one markdown table:
+
+| Feature Area | Files/Modules | Current State | Maturity |
+|--------------|---------------|---------------|----------|
+
+Then for each major feature area (keep each to 3-5 bullets): **What exists** (file/module refs), **Maturity**, **Improvement areas** (file refs only, no code), **Impact**. Use **bold** for labels.
 
 ## 4. Technology Trend Intelligence
-(This section IS REQUIRED if "TECHNOLOGY TREND INTELLIGENCE" data is provided above. Otherwise, omit.)
 
-For each major technology found in the stack:
-- **Version Analysis**: Compare the used version vs. the latest stable version (from trend data).
-- **Momentum Check**: Is this tech growing or declining? (Reference trend signals).
-- **Upgrade Opportunities**: specific recommendations to upgrade, including benefits (performance/security) and estimated effort.
-- **Competitive Risk**: Are there newer, better alternatives gaining traction?
-- **Emerging risks**: Technologies that are declining or being replaced.
+**If "TECHNOLOGY TREND INTELLIGENCE" (or equivalent trend data) is present in the findings:** Write 2-3 short paragraphs or a short table: version comparison (used vs latest), momentum (growing/declining), upgrade opportunities with effort, and any emerging risks. Use only the trend data provided.
 
-If no trend data is available, state: "Trend intelligence was not available for this analysis."
+**If no trend data:** Write one sentence: "Trend intelligence was not available for this analysis."
 
-## 5. Security & Performance Deep Dive
-- **Security**: Auth patterns, Input validation, Secrets management, Vulnerabilities found.
-- **Performance**: Caching, N+1 queries, Bundle sizes, Database indexing.
+## 5. Security & Performance
+
+Use tables where possible. Only include items supported by the findings.
+
+### Security
+| Area | Finding | Risk | Location |
+|------|---------|------|----------|
+(Auth, validation, secrets, vulnerabilities — cite files/modules.)
+
+### Performance
+- Short bullets: caching, N+1, bundle size, DB indexing — with file/module references when relevant.
 
 ## 6. Integration Ecosystem
-- Third-party APIs, SaaS tools, and external services detected.
-- How they are integrated (cleanly abstracted vs tightly coupled).
+
+- One table if there are several integrations: | Service | Purpose | Integration quality / Risk |
+- Short paragraph on how integrations are abstracted and where coupling or risk exists. Reference files only.
 
 ## 7. Code Quality Assessment
-**7.1. Best Practices & Strengths (Code Quality First)**
-*List the GOOD things first.*
-- [Strength 1] - Description + file/module reference
-- [Strength 2] - Description + file/module reference
 
-**7.2. Code Health Metrics**
-- Complexity assessment.
-- Test coverage estimation.
-- Documentation quality.
-- Error handling patterns.
+**7.1. Good Practices & Strengths (must come first)**
+- List what the codebase does well (testing, typing, error handling, structure, docs) with file/module references.
 
-**7.3. Quality Issues (by file reference)**
-| File | Module/Function | Issue | Severity |
-|------|----------------|-------|----------|
-List all issues with file references only — no code fix suggestions.
+**7.2. Code Health**
+- Brief bullets: complexity, test coverage, documentation, error-handling patterns — only what the findings support.
 
-## 8. Issues by Severity (Reference Only)
-*Group all identifiable technical debt and issues, sorted by severity.*
-*For each issue, reference the file and describe the problem — do NOT provide code fixes.*
+**7.3. Quality Issues**
+One table: | File | Module/Function | Issue | Severity |
+File references only; no code fix suggestions.
 
-### 🔴 Critical Severity
-**1. [Issue Title]**
-- **Location**: Specific file/module.
-- **Problem**: Description of the defect/risk.
-- **Impact**: What happens if not addressed.
-- **Effort**: Estimate.
+## 8. Issues by Severity
 
-### 🟠 High Severity
-[Same format]
+Group technical debt and issues by severity. For each item: **Title**, **Location** (file/module), **Problem** (1-2 sentences), **Impact**, **Effort**. Do not provide code fixes.
 
-### 🟡 Medium Severity
-[Same format]
+### Critical Severity
+- [Issue]: Location — Problem. Impact. Effort.
+
+### High Severity
+- [Same format]
+
+### Medium Severity
+- [Same format]
 
 ## 9. Strategic Action Plan
 
+Three time-boxed subsections. Bullets only: **Action** — files/modules to address; outcome.
+
 ### Phase 1: Stabilization (Weeks 1-2)
-- Focus on the Critical/High issues from Section 8.
-- Reference specific files to address.
+- Critical/High issues; reference specific files.
 
 ### Phase 2: Optimization (Weeks 3-4)
-- Performance tuning and refactoring targets.
-- Reference specific modules.
+- Performance and refactoring targets; reference modules.
 
 ### Phase 3: Growth & Modernization (Month 2+)
-- Architecture improvements to unlock new features.
-- Trend-informed upgrade recommendations.
+- Architecture and trend-informed upgrades; reference findings.
 
-## 10. Appendix
-- List of file types analyzed.
-- Tools detected.
-- Trend sources used (if any).
+## 10. Summary Table
 
-CONSTRAINTS:
-- Use Markdown formatting.
-- Be specific. Cite filenames and module names.
-- NEVER provide code fix suggestions or rewritten code — reference files/modules only.
-- Ensure "Good Practices" comes BEFORE "Issues" in Section 7.
-- If trend intelligence is present, integrate it throughout the report.
-"""
+| Priority | Action | Files / Area | Effort | Timeline |
+|----------|--------|--------------|--------|----------|
 
-AGGREGATED_EXECUTIVE_PROMPT = """You are a Strategic Technology Advisor creating a briefing for C-Level leadership.
-Your goal is to translate technical reality into Business Impact, Risk, and ROI.
+One closing sentence: the single most important technical next step.
+
+---
+Be comprehensive but scannable. Every claim must trace back to the raw findings. Cite filenames and module names. Never suggest or paste code fixes."""
+
+AGGREGATED_EXECUTIVE_PROMPT = """You are a Strategic Technology Advisor writing a briefing for C-Level leadership (CEO, CFO, CPO).
+Your job: translate technical findings into clear business impact, risk, and investment decisions. Executives will use this to decide where to invest time and money.
 
 Repository: {repo_name}
 
@@ -791,84 +512,89 @@ Repository: {repo_name}
 ==============================
 
 CRITICAL RULES:
-1. NO technical jargon without immediate business context.
-2. If "TECHNOLOGY TREND INTELLIGENCE" is present, you MUST use it to benchmark the project against the market.
-3. Be direct and concise. Avoid filler words.
-4. Focus on: What we have -> What it costs (risk/debt) -> What we should do.
+1. **Bottom line first.** Lead every section with the one-sentence takeaway, then support with detail.
+2. **Zero unexplained jargon.** If you use a technical term, define it in plain language in the same sentence (e.g. "API (how different systems talk to each other)").
+3. **Ground everything in the findings.** Do not invent competitors, version numbers, or metrics. Only use what appears in the raw findings above. If trend intelligence is present, use it for market context.
+4. **Scannable format.** Use markdown: short paragraphs (2-4 sentences), clear ## and ### headers, and tables (| col | col |) for any comparisons or lists. Avoid walls of text.
+5. **Business language only.** Frame every point as: impact on revenue/cost/risk, time to fix, and what to do next.
 
-Structure the report as follows:
+OUTPUT STRUCTURE (follow this order; use these exact section headers so the report renders correctly):
 
 # Executive Intelligence Brief: {repo_name}
 
 ## 1. Executive Summary
-- **The Bottom Line**: One sentence verdict (e.g., "Solid foundation, but aging dependencies pose security risks.").
-- **Competitive Positioning**: (Requires Trend Data) Are we using modern, winning tech or declining legacy tools?
-- **Primary Business Risk**: The single biggest threat to the business from this codebase (e.g., "Scalability limits", "Security vulnerability", "Developer velocity").
+
+Start with **Bottom line:** one sentence that a busy executive can act on (e.g. "The codebase is production-ready but outdated dependencies and missing tests create security and scaling risk; address these in the next quarter.").
+
+Then 2-3 short paragraphs (2-4 sentences each) covering:
+- **Current state**: What the product/tech is today in business terms (what it does, who it serves).
+- **Competitive positioning**: If trend data is in the findings, summarize how this stack compares to the market (modern vs legacy, gaps). If no trend data, say "Market trend data was not available."
+- **Primary business risk**: The single biggest threat (e.g. "Security exposure from old libraries", "Cannot scale to 10x users without rework").
+- **Top opportunity**: The single highest-value improvement or investment to consider first.
+
+Keep this section under 200 words.
 
 ## 2. Feature Improvement Opportunities
-For each major feature found in the product:
-| Feature | Current State | Improvement Opportunity | Business Impact |
-|---------|--------------|------------------------|----------------|
 
-For the top 3-5 improvements:
-**1. [Feature Improvement Name]**
-- **What it is today**: Plain description.
-- **What it could become**: Vision for improvement.
-- **Business impact**: Revenue, users, or efficiency gains.
-- **Time to implement**: Weeks/months estimate.
-- **Cost to implement**: Team size and resources.
+First, provide one markdown table summarizing features and opportunities:
+
+| Feature | Current State | Improvement | Business Impact | Effort |
+|---------|---------------|-------------|-----------------|--------|
+
+Then, for the **top 3-5** improvements only, add a short subsection per item (3-5 bullet points each):
+- **What it is today**: One sentence.
+- **What to do**: One sentence.
+- **Business impact**: Revenue, conversion, or efficiency (quantify if the findings support it).
+- **Time and cost**: e.g. "2-4 weeks, 1 developer."
+
+Use **bold** for labels. Keep each subsection brief.
 
 ## 3. Time & Cost Optimization
-- **Current operational costs**: Estimated infrastructure and service costs.
-- **Wasted resources**: Where money or developer time is being spent inefficiently.
-- **Quick savings**: Changes that reduce costs this month.
-- **Strategic savings**: Longer-term optimizations.
 
-| Optimization | Current Cost | After Optimization | Savings |
-|-------------|-------------|-------------------|--------|
+- One short paragraph: **Current operational costs** (infrastructure, services) and **wasted resources** (where time or money is spent inefficiently), based only on what the findings state.
+- Then a single markdown table (only include rows you can justify from the findings):
+
+| Optimization | Current | After | Savings |
+|--------------|---------|-------|---------|
+
+If no concrete optimizations are evident, say so in one sentence and skip the table.
 
 ## 4. Market & Competitive Context
-If trend intelligence is available:
-- **Industry direction**: Where the technology market is heading.
-- **Your position**: How this product compares to market standards.
-- **Opportunities**: Trends you can capitalize on.
-- **Risks**: Trends that could make your product obsolete.
 
-If no trend data: "Market trend analysis was not available for this assessment."
+**If trend intelligence is present in the findings:** Write 2-3 short paragraphs on industry direction, how this product compares, opportunities to capture, and risks of falling behind. Use specifics from the trend data.
+
+**If no trend data:** Write one sentence: "Market trend analysis was not available for this assessment."
 
 ## 5. Business Risk Assessment
-- **Stability Risk**: Will the product keep working reliably?
-- **Growth Risk**: Can the product handle 10x more users?
-- **Security Risk**: Is customer data safe?
-- **Team Risk**: Can new developers maintain this product?
 
-For each risk:
-- **Risk level**: Low / Medium / High
-- **Business consequence**: What happens if we don't address it.
-- **Cost to fix**: Budget estimate.
+Use a table for scannability. Then 1-2 short paragraphs only for risks that need explanation.
+
+| Risk Area | Level | Business Consequence | Cost to Address |
+|-----------|-------|----------------------|-----------------|
+
+Risk areas to consider (only include those supported by findings): Stability (will it keep working?), Growth (can it handle 10x users?), Security (data safety), Team (can new developers maintain this?). For High/Critical risks, add 1-2 sentences on what happens if unaddressed and a rough fix cost (time/budget) from the findings.
 
 ## 6. Strategic Recommendations
 
+Use three subsections with bullet lists. Each bullet: **Action** — expected result; cost/time.
+
 ### This Week
-Quick wins that improve the product immediately:
-- [Action 1]: Expected result, cost.
-- [Action 2]: Expected result, cost.
+- [Action]: Outcome; cost (e.g. "No budget" or "X hours").
 
 ### This Month
-Feature improvements and optimizations:
-- [Initiative 1]: Business case, investment, expected return.
-- [Initiative 2]: Business case, investment, expected return.
+- [Initiative]: Business case; investment; expected return.
 
 ### This Quarter
-Strategic investments for growth:
-- [Initiative 1]: Transformation expected, investment required.
-- [Initiative 2]: Transformation expected, investment required.
+- [Initiative]: Transformation; investment; key milestone.
 
 ## 7. Investment Summary
-| Priority | Action | Investment | Expected Return | Timeline |
-|----------|--------|-----------|----------------|----------|
-Summarize all recommended investments in one table.
 
-Keep it professional, insightful, and focused on business outcomes.
-Avoid ALL technical jargon — if a technical term must be used, explain it in parentheses.
-"""
+One markdown table summarizing all recommended investments:
+
+| Priority | Action | Investment | Expected Return | Timeline |
+|----------|--------|-------------|-----------------|----------|
+
+End with one closing sentence: the single most important decision or next step for leadership.
+
+---
+Keep the full report professional, evidence-based, and scannable. Prefer tables and bullets over long paragraphs. Every claim should trace back to the raw findings."""

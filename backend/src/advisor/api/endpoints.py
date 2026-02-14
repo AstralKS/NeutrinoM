@@ -3,12 +3,14 @@
 Main API layer for the AI Development Advisor.
 """
 
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 from uuid import UUID
 
 from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from advisor.analysis import AnalysisOrchestrator
@@ -17,6 +19,7 @@ from advisor.database.client import get_supabase_client
 from advisor.database.models import AnalysisRecord, AnalysisRequest, AnalysisResponse
 from advisor.database.repository import AnalysisRepository
 from advisor.github.client import GitHubError
+from advisor.reports.generator import generate_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -136,6 +139,8 @@ async def analyze_repository(request: AnalysisRequest) -> AnalysisResponse:
             message="Analysis completed successfully",
             technical_summary=result.technical_summary,
             executive_summary=result.executive_summary,
+            repo_url=result.repo_url,
+            model_used=result.model_used,
             timeline=result.timeline,
             api_call_timings=api_timings or None,
             trend_data=result.trend_data,
@@ -238,6 +243,58 @@ class ReportRequest(BaseModel):
     )
 
 
+class ReportPdfRequest(BaseModel):
+    """Request body for generating a PDF report from content."""
+
+    report_type: str = Field(
+        ...,
+        description="Report type: 'technical' or 'executive'",
+    )
+    repo_url: str = Field(..., description="Repository URL for the report header")
+    content: str = Field(..., description="Report body in markdown")
+    model_used: str | None = Field(default=None, description="Model name for the header")
+
+
+@app.post(
+    "/report/pdf",
+    tags=["Reports"],
+    responses={200: {"content": {"application/pdf": {}}, "description": "PDF file"}},
+)
+async def create_report_pdf(request: ReportPdfRequest) -> Response:
+    """Generate a PDF report from markdown content.
+
+    Accepts report type, repo URL, and markdown content; returns a PDF file.
+    Used by the frontend after analysis to download technical or executive reports.
+    """
+    if request.report_type not in ("technical", "executive"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="report_type must be 'technical' or 'executive'",
+        )
+    try:
+        pdf_bytes = await asyncio.to_thread(
+            generate_pdf,
+            report_type=request.report_type,
+            repo_url=request.repo_url,
+            content_markdown=request.content,
+            model_used=request.model_used,
+        )
+    except Exception as e:
+        logger.exception("PDF generation failed")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"PDF generation failed: {str(e)}",
+        ) from e
+    filename = f"{request.report_type}_report.pdf"
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
+
+
 @app.post(
     "/analysis/{analysis_id}/report",
     tags=["Reports"],
@@ -247,7 +304,7 @@ async def generate_report(analysis_id: UUID, request: ReportRequest):
 
     Reports are generated on-demand from stored analysis data.
     """
-    # TODO: Implement PDF generation
+    # TODO: Implement PDF generation from stored analysis
     raise HTTPException(
         status_code=status.HTTP_501_NOT_IMPLEMENTED,
         detail="PDF generation not yet implemented",
