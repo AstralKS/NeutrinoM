@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import { Navbar } from "./components/layout/Navbar";
 import { Hero } from "./components/features/Hero";
@@ -6,6 +7,7 @@ import { DashboardPreviewSection } from "./components/features/DashboardPreviewS
 import { Footer } from "./components/layout/Footer";
 import { DashboardPage } from "./pages/DashboardPage";
 import { LoginPage } from "./pages/LoginPage";
+import { AnalysisService } from "./services/api";
 
 function LandingPage() {
   return (
@@ -20,6 +22,13 @@ function LandingPage() {
 }
 
 function App() {
+  // Wake up backend on initial load (Render free tier sleeps after inactivity)
+  useEffect(() => {
+    AnalysisService.checkHealth().catch(() => {
+      // Ignore errors - this is just a best-effort wake-up ping
+    });
+  }, []);
+
   return (
     <Router>
       <Routes>
