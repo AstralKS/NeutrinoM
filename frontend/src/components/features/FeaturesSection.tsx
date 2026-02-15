@@ -56,8 +56,8 @@ const features: Feature[] = [
 
 export function FeaturesSection() {
   return (
-    <section className="relative py-32 bg-black overflow-hidden">
-      <div className="container mx-auto px-6 relative z-10">
+    <section className="relative py-28 bg-black overflow-hidden">
+      <div className="container mx-auto px-6 relative z-10 origin-top scale-90">
         {/* Section Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}

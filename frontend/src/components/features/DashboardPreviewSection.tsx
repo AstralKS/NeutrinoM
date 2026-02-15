@@ -46,10 +46,10 @@ export function DashboardPreviewSection() {
             <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
             Dashboard
           </motion.span>
-          <h2 className="text-4xl md:text-6xl font-clash font-bold text-white mb-6">
+          <h2 className="text-3xl md:text-5xl font-clash font-bold text-white mb-6">
             From Analysis to Action
           </h2>
-          <p className="text-xl md:text-2xl text-zinc-400 max-w-2xl mx-auto">
+          <p className="text-lg md:text-xl text-zinc-400 max-w-2xl mx-auto">
             Your dashboard surfaces technical and executive insights in one place.
           </p>
         </motion.div>
