@@ -30,20 +30,31 @@ async def lifespan(app: FastAPI):
     # Startup
     logger.info("Starting AI Development Advisor API")
     try:
-        # Load environment variables explicitly
+        # Load environment variables explicitly (local dev only)
+        # On Render/production, env vars are injected by the platform
         from pathlib import Path
         from dotenv import load_dotenv
 
-        # Find project root (.env is in NeutrinoM/)
-        # Current file: backend/src/advisor/api/endpoints.py
+        env_loaded = False
+        # Try project root first (monorepo: NeutrinoM/.env)
         project_root = Path(__file__).parent.parent.parent.parent.parent
         env_path = project_root / ".env"
         
         if env_path.exists():
             load_dotenv(env_path)
             logger.info(f"Loaded environment from {env_path}")
-        else:
-            logger.warning(f".env file not found at {env_path}")
+            env_loaded = True
+        
+        # Also try CWD/.env (when running from backend/)
+        if not env_loaded:
+            cwd_env = Path.cwd() / ".env"
+            if cwd_env.exists():
+                load_dotenv(cwd_env)
+                logger.info(f"Loaded environment from {cwd_env}")
+                env_loaded = True
+
+        if not env_loaded:
+            logger.info("No .env file found — using platform-injected environment variables")
 
         settings = get_settings()
         logger.info(f"Loaded settings for {settings.app_name}")

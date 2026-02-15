@@ -1,0 +1,27 @@
+services:
+  - type: web
+    name: neutrino-api
+    runtime: python
+    region: oregon
+    rootDir: backend
+    buildCommand: pip install .
+    startCommand: uvicorn advisor.api.endpoints:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.11"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY_1
+        sync: false
+      - key: OPENROUTER_API_KEY_2
+        sync: false
+      - key: OPENROUTER_API_KEY_3
+        sync: false
+      - key: OPENROUTER_API_KEY_4
+        sync: false
+      - key: SERPER_API_KEY
+        sync: false
+      - key: GITHUB_TOKEN
+        sync: false

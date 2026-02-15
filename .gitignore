@@ -1,3 +1,12 @@
+# Secrets
 .env
+
+# Tool directories
 .agents
 .kiro
+.kr
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
