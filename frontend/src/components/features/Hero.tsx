@@ -87,14 +87,17 @@ export function Hero() {
         initial={{ opacity: 0, y: 50 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.6, duration: 0.8 }}
-        className="absolute bottom-10 left-0 right-0 z-20 hidden lg:block"
+        className="absolute bottom-[20vh] left-0 right-0 z-20 hidden lg:block shrink-0"
       >
-        <div className="container mx-auto px-6">
-          <div className="grid grid-cols-4 gap-4 p-4 rounded-2xl glass border border-white/10">
+        <div className="container mx-auto px-6 min-w-0">
+          <div
+            className="grid gap-4 p-4 rounded-2xl glass border border-white/10 w-full"
+            style={{ gridTemplateColumns: "repeat(4, minmax(200px, 1fr))" }}
+          >
             {FLOATING_FEATURES.map((item, i) => (
               <div
                 key={i}
-                className="flex flex-col p-4 border-r border-white/10 last:border-0 hover:bg-white/5 transition-colors rounded-lg"
+                className="flex min-w-0 flex-col p-4 border-r border-white/10 last:border-0 hover:bg-white/5 transition-colors rounded-lg"
               >
                 <h3 className="text-white font-semibold text-base mb-1.5">{item.title}</h3>
                 <p className="text-sm text-zinc-400 leading-relaxed">{item.desc}</p>
