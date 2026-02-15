@@ -27,7 +27,7 @@ const FLOATING_FEATURES = [
 
 export function Hero() {
   return (
-    <section className="relative min-h-screen w-full overflow-hidden flex flex-col items-center justify-center text-center bg-black">
+    <section className="relative min-h-screen w-full overflow-hidden flex flex-col items-center justify-center text-center bg-black lg:pb-64">
       <div className="absolute inset-0 z-0">
         <div className="absolute inset-0 bg-black/60 z-10" />
         <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-transparent to-black z-10" />
@@ -61,14 +61,14 @@ export function Hero() {
             </span>
           </motion.div>
 
-          <h1 className="text-5xl md:text-7xl font-clash font-bold tracking-tight text-white mb-6 leading-[1.1]">
+          <h1 className="text-6xl md:text-8xl font-clash font-bold tracking-tight text-white mb-8 leading-[1.08]">
             Understand Any <br />
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-cyan-200 to-white text-glow">
               Codebase in Minutes
             </span>
           </h1>
 
-          <p className="text-lg md:text-xl text-zinc-400 max-w-2xl mb-10 leading-relaxed font-light">
+          <p className="text-xl md:text-2xl text-zinc-400 max-w-2xl mb-12 leading-relaxed font-light">
             Turn complex repositories into clear technical and executive insights powered by AI.
           </p>
 
@@ -96,8 +96,8 @@ export function Hero() {
                 key={i}
                 className="flex flex-col p-4 border-r border-white/10 last:border-0 hover:bg-white/5 transition-colors rounded-lg"
               >
-                <h3 className="text-white font-medium mb-1">{item.title}</h3>
-                <p className="text-sm text-zinc-400">{item.desc}</p>
+                <h3 className="text-white font-semibold text-base mb-1.5">{item.title}</h3>
+                <p className="text-sm text-zinc-400 leading-relaxed">{item.desc}</p>
               </div>
             ))}
           </div>

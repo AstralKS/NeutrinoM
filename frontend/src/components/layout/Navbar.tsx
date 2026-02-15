@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { motion, useScroll, useMotionValueEvent } from "framer-motion";
 import { Button } from "../ui/Button";
+import { NeutrinoLogo } from "../ui/NeutrinoLogo";
 import { Menu, X } from "lucide-react";
 import { cn } from "../../lib/utils";
 
@@ -29,10 +30,8 @@ export function Navbar() {
     >
       <div className="container mx-auto px-6 flex items-center justify-between">
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-2 group">
-          <div className="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center text-white font-bold text-lg group-hover:shadow-[0_0_20px_rgba(99,102,241,0.6)] transition-shadow">
-            N
-          </div>
+        <Link to="/" className="flex items-center gap-2.5 group">
+          <NeutrinoLogo size={32} className="group-hover:drop-shadow-[0_0_12px_rgba(99,102,241,0.6)] transition-all" />
           <span className="font-clash font-bold text-xl tracking-wide text-white">Neutrino</span>
         </Link>
 
