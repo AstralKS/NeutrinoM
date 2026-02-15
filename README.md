@@ -4,16 +4,22 @@
 
 ## Overview
 
-The **AI Development Advisor** is a backend system that analyzes GitHub repositories to provide:
+**Neutrino** analyzes GitHub repositories and surfaces insights in one place:
+
 - **Technical Summaries** for engineers (architecture, code quality, security, roadmap)
 - **Executive Summaries** for business leaders (risks, opportunities, action plans)
 - **Trend Intelligence** — version-aware market data enriched via RAG (Supabase pgvector)
 
-Built with **FastAPI** (API) + **Streamlit** (UI) + **OpenRouter** (LLM) + **Supabase** (SQL + pgvector).
+**Stack:**
+
+- **Backend:** FastAPI (API) + Streamlit (legacy UI) + OpenRouter (LLM) + Supabase (SQL + pgvector)
+- **Frontend:** React 19 + Vite + Tailwind CSS + Framer Motion — landing page (hero, capabilities, dashboard preview) and dashboard for analysis and reports
 
 ---
 
 ## Quick Start
+
+### Backend
 
 ```bash
 cd backend
@@ -31,17 +37,31 @@ uv run uvicorn advisor.api.endpoints:app --reload --port 8000
 uv run streamlit run src/advisor/ui/app.py
 ```
 
+### Frontend
+
+```bash
+cd frontend
+
+# Install dependencies
+npm install
+
+# Start dev server
+npm run dev
+```
+
 **Access:**
-- API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
-- Streamlit UI: http://localhost:8501
+
+- **Frontend (React):** http://localhost:5173
+- **API:** http://localhost:8000
+- **API Docs:** http://localhost:8000/docs
+- **Streamlit UI:** http://localhost:8501
 
 ---
 
 ## Project Structure
 
 ```
-backend/
+backend/                   # Python API + Streamlit UI
 ├── src/advisor/           # Main application package
 │   ├── __init__.py
 │   ├── config/            # Configuration and settings
@@ -90,6 +110,19 @@ backend/
 ├── pyproject.toml         # Dependencies and project config
 ├── uv.lock                # Lock file
 └── .gitignore
+
+frontend/                  # React landing + dashboard
+├── src/
+│   ├── assets/            # Images and static assets
+│   ├── components/        # UI and feature components
+│   │   ├── features/      # Hero, FeaturesSection, DashboardPreviewSection
+│   │   └── ui/            # Button, GlassCard, etc.
+│   ├── pages/             # Route-level pages
+│   ├── App.tsx
+│   └── main.tsx
+├── index.html
+├── package.json
+└── vite.config.ts
 ```
 
 ---
@@ -441,20 +474,17 @@ class Recommendation(BaseModel):
 ## Commands Reference
 
 ```bash
-# Start API
-uv run uvicorn advisor.api.endpoints:app --reload --port 8000
+# Backend (from backend/)
+uv run uvicorn advisor.api.endpoints:app --reload --port 8000   # API
+uv run streamlit run src/advisor/ui/app.py                      # Streamlit UI
+uv run pytest tests/ -v                                          # Tests
+uv run ruff check src/ && uv run ruff format src/                 # Lint & format
 
-# Start UI
-uv run streamlit run src/advisor/ui/app.py
-
-# Run tests
-uv run pytest tests/ -v
-
-# Lint
-uv run ruff check src/
-
-# Format
-uv run ruff format src/
+# Frontend (from frontend/)
+npm run dev      # Dev server (http://localhost:5173)
+npm run build    # Production build
+npm run preview  # Preview production build
+npm run lint     # ESLint
 ```
 
 ---

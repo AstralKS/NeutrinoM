@@ -16,7 +16,7 @@
 8. [Analysis Pipeline](#analysis-pipeline)
 9. [LLM Integration](#llm-integration)
 10. [Database Layer](#database-layer)
-11. [Frontend (Streamlit UI)](#frontend-streamlit-ui)
+11. [Frontend (React + Streamlit)](#frontend-react--streamlit)
 12. [Key Design Patterns](#key-design-patterns)
 13. [Performance Optimizations](#performance-optimizations)
 
@@ -24,12 +24,16 @@
 
 ## 🎯 System Overview
 
-The **AI Development Advisor** is a sophisticated backend system that analyzes GitHub repositories to provide:
+**Neutrino** is an AI Development Advisor that analyzes GitHub repositories and surfaces insights in one place:
 
 | Output Type | Target Audience | Content |
 |-------------|-----------------|---------|
 | **Technical Summary** | Engineers | Architecture, code quality, security, technical roadmap |
 | **Executive Summary** | Business Leaders | Risks, opportunities, action plans, resource estimates |
+
+### Frontend Options
+- **React app (primary):** Landing page (hero, capabilities, dashboard preview) and dashboard for analysis and reports — Vite, Tailwind CSS, Framer Motion, React Router. Served at `localhost:5173`.
+- **Streamlit UI (legacy):** Tabbed Technical/Executive view, report downloads, recent analyses. Served at `localhost:8501`.
 
 ### Core Value Proposition
 - **Input**: GitHub repository URL (public or private)
@@ -42,12 +46,12 @@ The **AI Development Advisor** is a sophisticated backend system that analyzes G
 ```
 ┌─────────────────────────────────────────────────────────────────────────────────┐
 │                              FRONTEND LAYER                                      │
-│  ┌───────────────────────────────────────────────────────────────────────────┐  │
-│  │                     Streamlit UI (ui/app.py)                              │  │
-│  │  • Repository URL input       • Private repo token support                │  │
-│  │  • Tabbed view (Tech/Exec)    • Markdown report downloads                 │  │
-│  │  • Recent analyses list       • API health indicator                      │  │
-│  └───────────────────────────────────────────────────────────────────────────┘  │
+│  ┌─────────────────────────────────────┐  ┌───────────────────────────────────┐  │
+│  │  React (frontend/) — primary        │  │  Streamlit (backend/ui/) — legacy  │  │
+│  │  • Landing: Hero, Features, CTA     │  │  • Repository URL + token        │  │
+│  │  • Dashboard: analyses & reports    │  │  • Tabbed Tech/Exec, downloads    │  │
+│  │  • localhost:5173                    │  │  • localhost:8501                 │  │
+│  └─────────────────────────────────────┘  └───────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────────────────────┘
                                         │
                                         ▼ HTTP (localhost:8000)
@@ -119,7 +123,8 @@ The **AI Development Advisor** is a sophisticated backend system that analyzes G
 
 | Layer | Technology | Purpose |
 |-------|------------|---------|
-| **Frontend** | Streamlit | Interactive web UI |
+| **Frontend** | React 19 + Vite + Tailwind + Framer Motion | Landing page & dashboard (primary) |
+| **Frontend (legacy)** | Streamlit | Interactive web UI (Tech/Exec tabs, downloads) |
 | **API** | FastAPI | REST API with async support |
 | **HTTP Client** | httpx | Shared async client (reused across all LLM calls) |
 | **LLM** | OpenRouter | AI model gateway (free models) |
@@ -151,12 +156,11 @@ The **AI Development Advisor** is a sophisticated backend system that analyzes G
 │  User enters: https://github.com/owner/repo                                 │
 │  (Optional: GitHub access token for private repos)                          │
 │                                                                             │
-│  ┌─────────────────────────────────────────┐                                │
-│  │  Streamlit UI (localhost:8501)          │                                │
-│  │  • Validates URL format                  │                                │
-│  │  • Shows "Analyzing..." spinner          │                                │
-│  │  • Timeout: 5 minutes                    │                                │
-│  └─────────────────────────────────────────┘                                │
+│  ┌─────────────────────────────────────────┐  ┌─────────────────────────────┐│
+│  │  React Dashboard (localhost:5173)        │  │  Streamlit (localhost:8501)  ││
+│  │  • Validates URL, analyzes from /dashboard│  │  • Same flow, tabbed view   ││
+│  │  • Timeout: 5 minutes                    │  │  • Markdown downloads       ││
+│  └─────────────────────────────────────────┘  └─────────────────────────────┘│
 │                          │                                                  │
 │                          ▼ POST /analyze                                    │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -529,25 +533,20 @@ The **AI Development Advisor** is a sophisticated backend system that analyzes G
 │ STEP 11: UI DISPLAY                                                         │
 ├─────────────────────────────────────────────────────────────────────────────┤
 │                                                                             │
-│  Streamlit displays results:                                                │
+│  React Dashboard or Streamlit displays results:                             │
+│                                                                             │
+│  • React: Dashboard view with technical/executive insights, reports, CTA    │
+│  • Streamlit: Tabbed view (Technical | Executive), Markdown downloads,      │
+│    recent analyses list, analysis ID / model / repo metadata              │
 │                                                                             │
 │  ┌─────────────────────────────────────────────────────────────────┐        │
 │  │  📈 Analysis Results                                            │        │
 │  │  ✅ Analysis completed successfully                             │        │
-│  │                                                                 │        │
-│  │  ┌─────────────────┐ ┌─────────────────┐                        │        │
-│  │  │ 👨‍💻 Technical  │ │ 👔 Executive   │  ← Tabbed View          │        │
+│  │  ┌─────────────────┐ ┌─────────────────┐  Tabbed (Streamlit)   │        │
+│  │  │ 👨‍💻 Technical  │ │ 👔 Executive   │  or Dashboard (React)  │        │
 │  │  └─────────────────┘ └─────────────────┘                        │        │
-│  │                                                                 │        │
-│  │  ## 1. Architecture Overview                                    │        │
-│  │  ...rendered markdown...                                        │        │
-│  │                                                                 │        │
-│  │  ┌──────────────────────────────────────────┐                   │        │
-│  │  │ 📥 Download Technical Report (.md)       │  ← Download       │        │
-│  │  └──────────────────────────────────────────┘                   │        │
-│  │                                                                 │        │
-│  │  ────────────────────────────────────────────                   │        │
-│  │  📋 ID: 550e8400-...  🤖 Model: deepseek...  📁 Repo: owner/repo │        │
+│  │  ## 1. Architecture Overview  ...rendered markdown...             │        │
+│  │  📥 Download reports  •  📋 ID / 🤖 Model / 📁 Repo                │        │
 │  └─────────────────────────────────────────────────────────────────┘        │
 │                                                                             │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -628,6 +627,15 @@ CONSTRAINTS:
 | `client.py` | Supabase connection (cached) |
 | `repository.py` | CRUD operations |
 | `models.py` | Pydantic schemas |
+
+### 6. Frontend (React + Streamlit)
+
+| Frontend | Location | Purpose |
+|----------|----------|---------|
+| **React** | `frontend/` | Primary UI: landing (Hero, Beyond Static Analysis, From Analysis to Action), dashboard for repository analysis and reports. Vite, Tailwind CSS, Framer Motion, React Router. |
+| **Streamlit** | `backend/src/advisor/ui/app.py` | Legacy UI: repo URL input, tabbed Technical/Executive view, Markdown downloads, recent analyses, API health. |
+
+**React entry points:** Landing at `/`, dashboard at `/dashboard`. Both call the FastAPI backend at `localhost:8000` for `/analyze`, `/analysis/:id`, `/analyses`, `/health`.
 
 ---
 
@@ -719,7 +727,7 @@ CONSTRAINTS:
 ## 📁 Project Structure
 
 ```
-backend/
+backend/                   # Python API + Streamlit UI
 ├── src/advisor/
 │   ├── __init__.py
 │   ├── config/
@@ -761,12 +769,25 @@ backend/
 │   │   └── endpoints.py      # FastAPI routes
 │   └── ui/
 │       ├── __init__.py
-│       └── app.py            # Streamlit frontend
+│       └── app.py            # Streamlit frontend (legacy)
 ├── tests/                    # 60 tests total
 ├── migrations/               # SQL migrations
 ├── scripts/                  # Utility scripts
 ├── pyproject.toml           # Dependencies
 └── uv.lock                  # Lock file
+
+frontend/                    # React landing + dashboard (primary UI)
+├── src/
+│   ├── assets/               # Images and static assets
+│   ├── components/           # UI and feature components
+│   │   ├── features/         # Hero, FeaturesSection, DashboardPreviewSection
+│   │   └── ui/               # Button, GlassCard, etc.
+│   ├── pages/                # Route-level pages
+│   ├── App.tsx
+│   └── main.tsx
+├── index.html
+├── package.json
+└── vite.config.ts
 ```
 
 ---
@@ -774,17 +795,17 @@ backend/
 ## 🚀 Quick Start Commands
 
 ```bash
-# Start API server
-uv run uvicorn advisor.api.endpoints:app --reload --port 8000
+# Backend (from backend/)
+uv run uvicorn advisor.api.endpoints:app --reload --port 8000   # API
+uv run streamlit run src/advisor/ui/app.py                      # Streamlit UI (optional)
+uv run pytest tests/ -v                                          # Tests
+uv run ruff check src/ && uv run ruff format src/                 # Lint & format
 
-# Start Streamlit UI (separate terminal)
-uv run streamlit run src/advisor/ui/app.py
-
-# Run tests
-uv run pytest tests/ -v
-
-# Run linter
-uv run ruff check src/
+# Frontend (from frontend/)
+npm install && npm run dev   # Dev server at http://localhost:5173
+npm run build                # Production build
+npm run preview              # Preview production build
+npm run lint                 # ESLint
 ```
 
 ---
