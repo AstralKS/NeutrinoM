@@ -94,8 +94,20 @@
 │ • ReportAgent (RAG) │   │ • Prompt templates  │   │                     │
 └─────────────────────┘   └─────────────────────┘   └─────────────────────┘
           │                         │                         │
-          └─────────────┬───────────┘                         │
-                        ▼                                     │
+          │   ┌─────────────────────────────────┐             │
+          │   │   TREND LAYER (Agentic Pipeline)│             │
+          │   ├─────────────────────────────────┤             │
+          │   │ • TrendPipeline (7-step)        │             │
+          │   │ • QueryPlanner (rule-based)     │             │
+          │   │ • SearchSources (parallel)      │             │
+          │   │ • ContentExtractor (signals)    │             │
+          │   │ • Ranker (composite scoring)    │             │
+          │   │ • Synthesizer (LLM synthesis)   │             │
+          │   │ • RAGStore (pgvector cache)     │             │
+          │   └─────────────┬───────────────────┘             │
+          │                 │                                  │
+          └────────┬────────┘                                  │
+                   ▼                                           │
           ┌─────────────────────────┐                         │
           │    DATABASE LAYER       │                         │
           ├─────────────────────────┤                         │
@@ -103,18 +115,19 @@
           │ • AnalysisRepository    │                         │
           │ • Pydantic Models       │                         │
           └─────────────────────────┘                         │
-                        │                                     │
-                        ▼                                     ▼
+                   │                                           │
+                   ▼                                           ▼
           ┌─────────────────────────┐           ┌─────────────────────────┐
           │   Supabase (PostgreSQL) │           │      GitHub API         │
-          │   (Cloud Database)      │           │   (api.github.com)      │
+          │   + pgvector (trends)   │           │   (api.github.com)      │
           └─────────────────────────┘           └─────────────────────────┘
-                        │
-                        │
-          ┌─────────────────────────┐
-          │      OpenRouter API     │
-          │  (LLM Gateway - Free)   │
-          └─────────────────────────┘
+                   │
+      ┌────────────┴────────────┐
+      ▼                         ▼
+┌─────────────────────────┐ ┌─────────────────────────┐
+│      OpenRouter API     │ │      Serper API          │
+│  (LLM Gateway - Free)  │ │  (Google Search)         │
+└─────────────────────────┘ └─────────────────────────┘
 ```
 
 ---
@@ -603,7 +616,40 @@ doc_files:    .md, .rst, .txt, LICENSE
 | `RiskAnalyzer` | files + contents + stack | `list[RiskItem]` |
 | `RecommendationEngine` | stack + arch + risks | `list[Recommendation]` |
 
-### 4. LLM Layer
+### 4. Trend Intelligence Layer (`trends/`)
+
+The trends module is a **7-step agentic search pipeline** that enriches repository analyses with real-time technology intelligence.
+
+| Module | Responsibility |
+|--------|---------------|
+| `pipeline.py` | Orchestrates the full 7-step pipeline (`TrendPipeline` class) |
+| `query_planner.py` | Rule-based sub-query generation (3 Serper + 1 GitHub + 1 HN per tag) |
+| `search_sources.py` | Parallel multi-source search with batched concurrency |
+| `content_extractor.py` | Signal extraction: versions, deprecations, features, performance |
+| `ranker.py` | Composite scoring (freshness 0.3 + authority 0.35 + relevance 0.35), dedup |
+| `synthesizer.py` | LLM-powered synthesis into structured `TrendInsight` JSON |
+| `rag_store.py` | Supabase pgvector storage/retrieval with 7-day cache window |
+| `models.py` | Pydantic models: `SearchQuery`, `SearchResult`, `ExtractedSignal`, `RankedResult`, `TrendInsight`, `TrendSourceInfo`, `RawTrendData` |
+
+**Pipeline Flow (per tech tag):**
+```
+1. RAG Cache Check → Hit? Return cached TrendInsight (7-day window)
+2. Query Planning  → 5 sub-queries (3 Serper + 1 GitHub + 1 HN)
+3. Parallel Search → Serper, GitHub Repos, HN Algolia (3 concurrent)
+4. Signal Extract  → Versions, deprecations, features, benchmarks
+5. Rank & Dedup   → Composite scoring, URL normalization, top 20
+6. LLM Synthesis  → JSON: key_points, momentum, risks, opportunities
+7. RAG Store      → Upsert into Supabase pgvector for future cache
+```
+
+**Key Data Models:**
+```python
+TrendInsight:
+  tag, key_points[5-7], momentum, risks[3], opportunities[3],
+  direction, latest_version, version_info, sources[9], collected_at
+```
+
+### 5. LLM Layer
 
 | Component | Responsibility |
 |-----------|---------------|
@@ -620,7 +666,7 @@ CONSTRAINTS:
 - No generic advice - every point must cite evidence
 ```
 
-### 5. Database Layer
+### 6. Database Layer
 
 | Component | Responsibility |
 |-----------|---------------|
@@ -628,7 +674,7 @@ CONSTRAINTS:
 | `repository.py` | CRUD operations |
 | `models.py` | Pydantic schemas |
 
-### 6. Frontend (React + Streamlit)
+### 7. Frontend (React + Streamlit)
 
 | Frontend | Location | Purpose |
 |----------|----------|---------|
@@ -643,64 +689,81 @@ CONSTRAINTS:
 ## 🧠 Analysis Pipeline
 
 ```
-┌────────────────────────────────────────────────────────────────────────────┐
-│                         ANALYSIS PIPELINE                                  │
-├────────────────────────────────────────────────────────────────────────────┤
-│                                                                            │
-│   repo_url                                                                 │
-│      │                                                                     │
-│      ▼                                                                     │
-│   ┌─────────────────┐                                                      │
-│   │  Parse URL      │  → (owner, repo)                                     │
-│   └────────┬────────┘                                                      │
-│            │                                                               │
-│            ▼                                                               │
-│   ┌─────────────────┐        ┌─────────────────┐                           │
-│   │  Get Metadata   │───────▶│  Get File Tree  │                           │
-│   │  (default branch)│        │  (recursive)    │                           │
-│   └────────┬────────┘        └────────┬────────┘                           │
-│            │                          │                                    │
-│            │             ┌────────────┘                                    │
-│            ▼             ▼                                                 │
-│   ┌───────────────────────────┐                                            │
-│   │    Parse File Tree        │                                            │
-│   │    (classify: code/config/doc)                                         │
-│   └──────────────┬────────────┘                                            │
-│                  │                                                         │
-│                  ▼                                                         │
-│   ┌───────────────────────────┐                                            │
-│   │  Get Priority Files       │  → max 20 files                            │
-│   │  (parallel fetch)         │                                            │
-│   └──────────────┬────────────┘                                            │
-│                  │                                                         │
-│      ┌───────────┴───────────┬───────────────┬───────────────┐             │
-│      ▼                       ▼               ▼               ▼             │
-│ ┌──────────────┐     ┌──────────────┐ ┌──────────────┐ ┌──────────────┐    │
-│ │StackDetector │     │ArchAnalyzer  │ │ RiskAnalyzer │ │ RecEngine    │    │
-│ └──────┬───────┘     └──────┬───────┘ └──────┬───────┘ └──────┬───────┘    │
-│        │                    │                │                │            │
-│        ▼                    ▼                ▼                ▼            │
-│   TechStackInfo    ArchitecturePatterns   RiskItems    Recommendations     │
-│        │                    │                │                │            │
-│        └────────────────────┴────────────────┴────────────────┘            │
-│                                    │                                       │
-│                                    ▼                                       │
-│                        ┌─────────────────────────┐                         │
-│                        │   LLM Summary Generation │                        │
-│                        │   (PARALLEL)             │                        │
-│                        │   ┌────────┐ ┌────────┐  │                        │
-│                        │   │TECH    │ │EXEC    │  │                        │
-│                        │   │SUMMARY │ │SUMMARY │  │                        │
-│                        │   └────────┘ └────────┘  │                        │
-│                        └────────────┬────────────┘                         │
-│                                     │                                      │
-│                                     ▼                                      │
-│                            ┌─────────────────┐                             │
-│                            │ AnalysisRecord  │                             │
-│                            │ (final output)  │                             │
-│                            └─────────────────┘                             │
-│                                                                            │
-└────────────────────────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                          ANALYSIS PIPELINE                                   │
+├──────────────────────────────────────────────────────────────────────────────┤
+│                                                                              │
+│   repo_url                                                                   │
+│      │                                                                       │
+│      ▼                                                                       │
+│   ┌─────────────────┐                                                        │
+│   │  Parse URL      │  → (owner, repo)                                       │
+│   └────────┬────────┘                                                        │
+│            │                                                                 │
+│            ▼                                                                 │
+│   ┌─────────────────┐        ┌─────────────────┐                             │
+│   │  Get Metadata   │───────▶│  Get File Tree  │                             │
+│   │  (default branch)│        │  (recursive)    │                             │
+│   └────────┬────────┘        └────────┬────────┘                             │
+│            │                          │                                      │
+│            │             ┌────────────┘                                      │
+│            ▼             ▼                                                   │
+│   ┌───────────────────────────┐                                              │
+│   │    Parse File Tree        │                                              │
+│   │    (classify: code/config/doc)                                           │
+│   └──────────────┬────────────┘                                              │
+│                  │                                                           │
+│                  ▼                                                           │
+│   ┌───────────────────────────┐                                              │
+│   │  Get Priority Files       │  → max 20 files                              │
+│   │  (parallel fetch)         │                                              │
+│   └──────────────┬────────────┘                                              │
+│                  │                                                           │
+│      ┌───────────┴───────────┬───────────────┬───────────────┐               │
+│      ▼                       ▼               ▼               ▼               │
+│ ┌──────────────┐     ┌──────────────┐ ┌──────────────┐ ┌──────────────┐      │
+│ │StackDetector │     │ArchAnalyzer  │ │ RiskAnalyzer │ │ RecEngine    │      │
+│ └──────┬───────┘     └──────┬───────┘ └──────┬───────┘ └──────┬───────┘      │
+│        │                    │                │                │              │
+│        ▼                    ▼                ▼                ▼              │
+│   TechStackInfo    ArchPatterns         RiskItems      Recommendations       │
+│        │                    │                │                │              │
+│        └────────────────────┴────────────────┴────────────────┘              │
+│                  │                                                           │
+│    ┌─────────────┴──────────────────────────────────────────────┐            │
+│    │                                                            │            │
+│    ▼                                                            ▼            │
+│ ┌──────────────────────────────────────────────────┐  ┌──────────────────┐   │
+│ │  TREND ENRICHMENT (TrendPipeline — 7-step)       │  │  Deep Review     │   │
+│ │  Per tech tag: RAG cache → QueryPlanner →         │  │  (parallel LLM)  │   │
+│ │  Parallel Search (Serper+GitHub+HN) →            │  │  FE/BE/Infra     │   │
+│ │  ContentExtractor → Ranker → LLM Synthesis →     │  │  agents          │   │
+│ │  RAG Store  (7-day pgvector cache)               │  └────────┬─────────┘   │
+│ └────────────────────────┬─────────────────────────┘           │             │
+│                          │                                      │             │
+│                          ▼                                      │             │
+│                  trend_context (per-tech)                       │             │
+│                          │                                      │             │
+│                          └──────────────┬───────────────────────┘             │
+│                                         │                                    │
+│                                         ▼                                    │
+│                        ┌─────────────────────────┐                           │
+│                        │   LLM Summary Generation │                          │
+│                        │   (PARALLEL)             │                           │
+│                        │   ┌────────┐ ┌────────┐  │                          │
+│                        │   │TECH    │ │EXEC    │  │                          │
+│                        │   │SUMMARY │ │SUMMARY │  │                          │
+│                        │   └────────┘ └────────┘  │                          │
+│                        └────────────┬────────────┘                           │
+│                                     │                                        │
+│                                     ▼                                        │
+│                            ┌─────────────────┐                               │
+│                            │ AnalysisRecord  │                               │
+│                            │ (final output)  │                               │
+│                            │ + trend_data    │                               │
+│                            └─────────────────┘                               │
+│                                                                              │
+└──────────────────────────────────────────────────────────────────────────────┘
 ```
 
 ## ⚡ Performance Optimizations
@@ -757,13 +820,17 @@ backend/                   # Python API + Streamlit UI
 │   │       ├── timeline.py       # Per-phase + per-API-call timing
 │   │       └── chunk_prompts.py  # Smart chunking for code context
 │   ├── trends/
-│   │   ├── __init__.py
-│   │   ├── trend_master.py       # Orchestrates collection + LLM summarization
-│   │   ├── data_collector.py     # Serper, GitHub, HN parallel fetching
-│   │   ├── aggregator.py         # HN, Dev.to, GitHub Trending aggregation
-│   │   ├── matcher.py            # Stack-to-trend relevance scoring
-│   │   ├── rag_manager.py        # Supabase pgvector storage/retrieval
-│   │   └── models.py             # TrendInsight, TrendSourceInfo, etc.
+│   │   ├── __init__.py           # Public API: TrendPipeline, RAGStore, models
+│   │   ├── pipeline.py           # 7-step agentic pipeline orchestrator (TrendPipeline)
+│   │   ├── query_planner.py      # Rule-based sub-query generation (5 queries/tag)
+│   │   ├── search_sources.py     # Parallel multi-source search (Serper, GitHub, HN)
+│   │   ├── content_extractor.py  # Signal extraction (versions, deprecations, features)
+│   │   ├── ranker.py             # Scoring, dedup, sorting (freshness/authority/relevance)
+│   │   ├── synthesizer.py        # LLM-powered synthesis into TrendInsight
+│   │   ├── rag_store.py          # Supabase pgvector storage/retrieval (7-day cache)
+│   │   ├── models.py             # SearchQuery, SearchResult, ExtractedSignal, RankedResult,
+│   │   │                         # TrendInsight, TrendSourceInfo, RawTrendData
+│   │   └── test_trends.py        # Pipeline integration tests
 │   ├── api/
 │   │   ├── __init__.py
 │   │   └── endpoints.py      # FastAPI routes
