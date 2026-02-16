@@ -6,14 +6,17 @@ Main API layer for the AI Development Advisor.
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from typing import Annotated
 from uuid import UUID
 
-from fastapi import FastAPI, HTTPException, status
+import httpx
+from fastapi import Depends, FastAPI, HTTPException, Header, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from advisor.analysis import AnalysisOrchestrator
+from advisor.api.deps import AuthenticatedUser, get_current_user, get_optional_user
 from advisor.config import get_settings
 from advisor.database.client import get_supabase_client
 from advisor.database.models import AnalysisRecord, AnalysisRequest, AnalysisResponse
@@ -110,16 +113,23 @@ async def health_check() -> HealthResponse:
     status_code=status.HTTP_202_ACCEPTED,
     tags=["Analysis"],
 )
-async def analyze_repository(request: AnalysisRequest) -> AnalysisResponse:
+async def analyze_repository(
+    request: AnalysisRequest,
+    user: AuthenticatedUser | None = Depends(get_optional_user),
+) -> AnalysisResponse:
     """Analyze a GitHub repository.
 
     Accepts a repository URL and optional access token for private repos.
     Returns analysis results including technical and executive summaries.
 
     Note: Access tokens are used ephemerally and never stored.
+    If an authenticated user is making the request, the analysis is linked to them.
     """
     try:
         logger.info(f"Received analysis request for {request.repo_url}")
+        if user:
+            logger.info(f"Authenticated user: {user.id}")
+
         # Create orchestrator with optional token
         orchestrator = AnalysisOrchestrator(
             github_token=request.access_token,
@@ -127,6 +137,10 @@ async def analyze_repository(request: AnalysisRequest) -> AnalysisResponse:
 
         # Run analysis
         result = await orchestrator.analyze(request.repo_url)
+
+        # Link analysis to authenticated user if present
+        if user:
+            result.user_id = UUID(user.id)
 
         # Store in database
         try:
@@ -241,6 +255,181 @@ async def list_analyses(limit: int = 20) -> AnalysisListResponse:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to list analyses: {str(e)}",
+        ) from e
+
+
+# ──────────────────────────────────────────────
+# User-authenticated endpoints
+# ──────────────────────────────────────────────
+
+class UserHistoryResponse(BaseModel):
+    """Response for user analysis history."""
+
+    analyses: list[AnalysisRecord]
+    count: int
+
+
+@app.get(
+    "/user/history",
+    response_model=UserHistoryResponse,
+    tags=["User"],
+)
+async def get_user_history(
+    user: AuthenticatedUser = Depends(get_current_user),
+    limit: int = 50,
+) -> UserHistoryResponse:
+    """Fetch all analysis records for the authenticated user."""
+    try:
+        client = get_supabase_client()
+        repo = AnalysisRepository(client)
+        results = await repo.get_by_user_id(UUID(user.id), limit=limit)
+
+        return UserHistoryResponse(
+            analyses=results,
+            count=len(results),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        error_str = str(e).lower()
+        if "relation" in error_str and "does not exist" in error_str:
+            logger.warning("Database table not found - returning empty history")
+            return UserHistoryResponse(analyses=[], count=0)
+
+        logger.error(f"Failed to fetch user history: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch user history: {str(e)}",
+        ) from e
+
+
+class GitHubRepoItem(BaseModel):
+    """Simplified GitHub repository info."""
+
+    id: int
+    name: str
+    full_name: str
+    html_url: str
+    description: str | None = None
+    language: str | None = None
+    stargazers_count: int = 0
+    updated_at: str | None = None
+    private: bool = False
+
+
+class GitHubReposResponse(BaseModel):
+    """Response for listing user GitHub repos."""
+
+    repos: list[GitHubRepoItem]
+    count: int
+
+
+@app.get(
+    "/user/github/repos",
+    response_model=GitHubReposResponse,
+    tags=["User"],
+)
+async def get_user_github_repos(
+    user: AuthenticatedUser = Depends(get_current_user),
+    x_github_token: Annotated[str | None, Header()] = None,
+    page: int = 1,
+    per_page: int = 30,
+) -> GitHubReposResponse:
+    """Fetch the authenticated user's GitHub repositories.
+
+    Uses the GitHub provider token. Prioritizes the X-GitHub-Token header
+    (passed from frontend session), then falls back to Supabase identities.
+    """
+    try:
+        github_token = x_github_token
+
+        # If not provided in header, try to fetch from Supabase
+        if not github_token:
+            # try to find it in the user identities if needed, but header is preferred
+            # (skipping complex Supabase admin logic for now as header is more reliable)
+            pass
+
+        if not github_token:
+            # One last try: check if we can get it from Supabase /user endpoint
+            # This is a fallback
+            try:
+                settings = get_settings()
+                async with httpx.AsyncClient() as http_client:
+                    resp = await http_client.get(
+                        f"{settings.supabase_url}/auth/v1/user",
+                        headers={
+                            "Authorization": f"Bearer {user.access_token}",
+                            "apikey": settings.supabase_service_role_key,
+                        },
+                    )
+                    if resp.status_code == 200:
+                        user_data = resp.json()
+                        for identity in user_data.get("identities", []):
+                            if identity.get("provider") == "github":
+                                github_token = identity.get("access_token")
+                                break
+            except Exception as e:
+                logger.warning(f"Failed to fetch GitHub token from Supabase: {e}")
+
+        if not github_token:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="GitHub provider token not found. Please sign in with GitHub.",
+            )
+
+        # Fetch repos from GitHub API
+        async with httpx.AsyncClient() as http_client:
+            resp = await http_client.get(
+                "https://api.github.com/user/repos",
+                headers={
+                    "Authorization": f"Bearer {github_token}",
+                    "Accept": "application/vnd.github.v3+json",
+                },
+                params={
+                    "sort": "updated",
+                    "direction": "desc",
+                    "per_page": per_page,
+                    "page": page,
+                    "type": "owner",
+                },
+            )
+
+            if resp.status_code != 200:
+                logger.error(f"GitHub API Error: {resp.status_code} {resp.text}")
+                msg = "Failed to fetch repositories from GitHub."
+                if resp.status_code == 401:
+                    msg = "GitHub token expired or invalid. Please sign out and sign in again."
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=msg,
+                )
+
+            repos_data = resp.json()
+            repos = [
+                GitHubRepoItem(
+                    id=r["id"],
+                    name=r["name"],
+                    full_name=r["full_name"],
+                    html_url=r["html_url"],
+                    description=r.get("description"),
+                    language=r.get("language"),
+                    stargazers_count=r.get("stargazers_count", 0),
+                    updated_at=r.get("updated_at"),
+                    private=r.get("private", False),
+                )
+                for r in repos_data
+            ]
+
+            return GitHubReposResponse(repos=repos, count=len(repos))
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to fetch user repos: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch user repos: {str(e)}",
         ) from e
 
 

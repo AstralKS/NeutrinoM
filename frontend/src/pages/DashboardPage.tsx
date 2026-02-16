@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Navbar } from "../components/layout/Navbar";
 import { Footer } from "../components/layout/Footer";
-import { RepoInput } from "../components/dashboard/RepoInput";
+import { RepoSelector } from "../components/dashboard/RepoSelector";
+import { HistorySidebar } from "../components/dashboard/HistorySidebar";
 import { AnalysisView } from "../components/dashboard/AnalysisView";
 import { AnalysisService } from "../services/api";
+import { useAuth } from "../contexts/AuthProvider";
 import type { AnalysisResult } from "../types";
 import { AlertCircle } from "lucide-react";
 import { motion } from "framer-motion";
@@ -12,6 +14,8 @@ export function DashboardPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [historyRefreshTrigger, setHistoryRefreshTrigger] = useState(0);
+  const { user } = useAuth();
 
   const handleAnalyze = async (url: string, token?: string) => {
     setIsLoading(true);
@@ -23,10 +27,12 @@ export function DashboardPage() {
         throw new Error("Backend API is unreachable. Please ensure the server is running.");
       }
 
-      const data = await AnalysisService.analyzeRepo({ repo_url: url, access_token: token });
-      
+      const data = await AnalysisService.analyzeRepo({ repo_url: url, github_token: token });
+
       if (data.success) {
         setResult(data);
+        // Refresh history list to show the new analysis
+        setHistoryRefreshTrigger(prev => prev + 1);
       } else {
         throw new Error(data.message || "Analysis failed unexpectedly.");
       }
@@ -38,15 +44,20 @@ export function DashboardPage() {
     }
   };
 
+  const handleHistorySelect = (historyResult: AnalysisResult) => {
+    setResult(historyResult);
+    setError(null);
+  };
+
   return (
     <div className="bg-black min-h-screen text-white flex flex-col">
       <Navbar />
-      
+
       <main className="flex-grow container mx-auto px-6 py-24 relative z-10">
         <motion.div
-           initial={{ opacity: 0, y: 20 }}
-           animate={{ opacity: 1, y: 0 }}
-           className="mb-12 text-center"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-12 text-center"
         >
           <h1 className="text-4xl font-clash font-bold mb-4">Repository Intelligence</h1>
           <p className="text-zinc-400">Generate deep technical and executive insights in minutes.</p>
@@ -64,12 +75,29 @@ export function DashboardPage() {
         )}
 
         {!result ? (
-          <RepoInput onAnalyze={handleAnalyze} isLoading={isLoading} />
+          <div className={`flex gap-8 ${user ? "items-start" : "justify-center"}`}>
+            {/* History Sidebar — only show if logged in */}
+            {user && (
+              <div className="hidden lg:block w-72 flex-shrink-0">
+                <div className="sticky top-28 backdrop-blur-xl bg-zinc-950/60 border border-white/5 rounded-2xl p-4">
+                  <HistorySidebar
+                    onSelectAnalysis={handleHistorySelect}
+                    refreshTrigger={historyRefreshTrigger}
+                  />
+                </div>
+              </div>
+            )}
+
+            {/* Repo Selector */}
+            <div className="flex-1 min-w-0 max-w-2xl mx-auto">
+              <RepoSelector onAnalyze={handleAnalyze} isLoading={isLoading} />
+            </div>
+          </div>
         ) : (
           <div className="space-y-6">
             <button
-               onClick={() => setResult(null)}
-               className="text-sm text-zinc-500 hover:text-white transition-colors mb-4"
+              onClick={() => setResult(null)}
+              className="text-sm text-zinc-500 hover:text-white transition-colors mb-4"
             >
               ← Analyze another repository
             </button>
@@ -80,8 +108,8 @@ export function DashboardPage() {
 
       {/* Decorative Background */}
       <div className="fixed top-0 left-0 right-0 h-screen overflow-hidden pointer-events-none z-0">
-          <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-indigo-600/10 rounded-full blur-[100px]" />
-          <div className="absolute bottom-[-10%] left-[-5%] w-[500px] h-[500px] bg-cyan-600/10 rounded-full blur-[100px]" />
+        <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-indigo-600/10 rounded-full blur-[100px]" />
+        <div className="absolute bottom-[-10%] left-[-5%] w-[500px] h-[500px] bg-cyan-600/10 rounded-full blur-[100px]" />
       </div>
 
       <Footer />
