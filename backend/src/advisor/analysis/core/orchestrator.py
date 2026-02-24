@@ -144,6 +144,7 @@ class AnalysisOrchestrator:
             integrations=[],
             technical_summary=deep_result.aggregated_technical,
             executive_summary=deep_result.aggregated_executive,
+            executive_stats=deep_result.executive_stats,
             analysis_duration_ms=duration_ms,
             file_count=structure.total_files,
             files_analyzed=len(file_contents),

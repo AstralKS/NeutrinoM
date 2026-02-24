@@ -15,6 +15,8 @@ import logging
 from typing import Any
 
 from advisor.llm.client import OpenRouterClient
+from advisor.llm.parser import parse_llm_json
+from advisor.database.models import ExecutiveStats
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +46,7 @@ class ReportAgent:
         infra_findings: str,
         trend_context: str = "",
         tech_tags: list[str] | None = None,
-    ) -> tuple[str, str, str]:
+    ) -> tuple[str, str, ExecutiveStats | None, str]:
         """Generate technical + executive reports using RAG context.
 
         Args:
@@ -56,7 +58,7 @@ class ReportAgent:
             tech_tags: Technology tags for RAG lookup.
 
         Returns:
-            Tuple of (technical_report, executive_report, model_used).
+            Tuple of (technical_report, executive_report, executive_stats, model_used).
         """
         # Step 1: Gather RAG context for historical insights
         rag_context = await self._fetch_rag_context(tech_tags or [])
@@ -71,6 +73,7 @@ class ReportAgent:
         from advisor.llm.prompts import (
             AGGREGATED_EXECUTIVE_PROMPT,
             AGGREGATED_TECHNICAL_PROMPT,
+            EXECUTIVE_STATS_PROMPT,
         )
 
         tech_prompt = AGGREGATED_TECHNICAL_PROMPT.format(
@@ -79,8 +82,11 @@ class ReportAgent:
         exec_prompt = AGGREGATED_EXECUTIVE_PROMPT.format(
             repo_name=repo_name, findings=enriched,
         )
+        stats_prompt = EXECUTIVE_STATS_PROMPT.format(
+            repo_name=repo_name, findings=enriched,
+        )
 
-        tech_result, exec_result = await asyncio.gather(
+        tech_result, exec_result, stats_result = await asyncio.gather(
             self._llm.complete(
                 prompt=tech_prompt,
                 system_prompt=(
@@ -101,11 +107,25 @@ class ReportAgent:
                 temperature=0.2,
                 max_tokens=16000,
             ),
+            self._llm.complete(
+                prompt=stats_prompt,
+                system_prompt="Data Analyst. Output strictly valid JSON.",
+                temperature=0.1,
+            ),
         )
+
+        # Parse stats safely
+        stats = None
+        try:
+            stats_dict = parse_llm_json(stats_result["content"])
+            stats = ExecutiveStats(**stats_dict)
+        except Exception as e:
+            logger.warning(f"Failed to parse executive stats: {e}")
 
         return (
             tech_result["content"],
             exec_result["content"],
+            stats,
             tech_result["model"],
         )
 

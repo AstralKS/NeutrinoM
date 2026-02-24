@@ -24,7 +24,7 @@ export function DashboardPage() {
       }
 
       const data = await AnalysisService.analyzeRepo({ repo_url: url, access_token: token });
-      
+
       if (data.success) {
         setResult(data);
       } else {
@@ -32,7 +32,8 @@ export function DashboardPage() {
       }
     } catch (err: any) {
       console.error(err);
-      setError(err.message || "An error occurred during analysis.");
+      const backendMessage = err.response?.data?.detail;
+      setError(backendMessage || err.message || "An error occurred during analysis.");
     } finally {
       setIsLoading(false);
     }
@@ -41,12 +42,12 @@ export function DashboardPage() {
   return (
     <div className="bg-black min-h-screen text-white flex flex-col">
       <Navbar />
-      
+
       <main className="flex-grow container mx-auto px-6 py-24 relative z-10">
         <motion.div
-           initial={{ opacity: 0, y: 20 }}
-           animate={{ opacity: 1, y: 0 }}
-           className="mb-12 text-center"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="mb-12 text-center"
         >
           <h1 className="text-4xl font-clash font-bold mb-4">Repository Intelligence</h1>
           <p className="text-zinc-400">Generate deep technical and executive insights in minutes.</p>
@@ -68,8 +69,8 @@ export function DashboardPage() {
         ) : (
           <div className="space-y-6">
             <button
-               onClick={() => setResult(null)}
-               className="text-sm text-zinc-500 hover:text-white transition-colors mb-4"
+              onClick={() => setResult(null)}
+              className="text-sm text-zinc-500 hover:text-white transition-colors mb-4"
             >
               ← Analyze another repository
             </button>
@@ -80,8 +81,8 @@ export function DashboardPage() {
 
       {/* Decorative Background */}
       <div className="fixed top-0 left-0 right-0 h-screen overflow-hidden pointer-events-none z-0">
-          <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-indigo-600/10 rounded-full blur-[100px]" />
-          <div className="absolute bottom-[-10%] left-[-5%] w-[500px] h-[500px] bg-cyan-600/10 rounded-full blur-[100px]" />
+        <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-indigo-600/10 rounded-full blur-[100px]" />
+        <div className="absolute bottom-[-10%] left-[-5%] w-[500px] h-[500px] bg-cyan-600/10 rounded-full blur-[100px]" />
       </div>
 
       <Footer />

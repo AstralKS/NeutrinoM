@@ -1,3 +1,17 @@
+export interface ExecutiveStats {
+  overall_health_score: number;
+  radar_metrics: {
+    Security: number;
+    Scalability: number;
+    Maintainability: number;
+    Performance: number;
+    Modernity: number;
+  };
+  tech_debt_estimate_days: number;
+  risk_level: 'Low' | 'Medium' | 'High' | 'Critical';
+  architecture_diagram?: string;
+}
+
 export interface AnalysisResult {
   success: boolean;
   message: string;
@@ -6,6 +20,7 @@ export interface AnalysisResult {
   model_used?: string;
   technical_summary: string;
   executive_summary: string;
+  executive_stats?: ExecutiveStats;
   timeline?: {
     total_duration_seconds: number;
     phases: Record<string, {

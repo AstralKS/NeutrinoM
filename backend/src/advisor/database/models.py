@@ -87,6 +87,21 @@ class Integration(BaseModel):
     cost_tier: str = ""  # free, low, medium, high, enterprise
 
 
+class ExecutiveStats(BaseModel):
+    """Quantitative executive statistics."""
+
+    overall_health_score: int = Field(ge=0, le=100)
+    radar_metrics: dict[str, int] = Field(
+        description="Scores 0-100 for Security, Scalability, Maintainability, Performance, Modernity"
+    )
+    tech_debt_estimate_days: int = Field(ge=0)
+    risk_level: str = Field(pattern="^(Low|Medium|High|Critical)$")
+    architecture_diagram: str | None = Field(
+        default=None,
+        description="Raw Mermaid.js flowchart string representing the system architecture"
+    )
+
+
 class RepositoryMetadata(BaseModel):
     """Minimal repository information."""
 
@@ -122,6 +137,7 @@ class AnalysisRecord(BaseModel):
     features: list[Feature] = Field(default_factory=list)
     business_model: BusinessModel | None = None
     integrations: list[Integration] = Field(default_factory=list)
+    executive_stats: ExecutiveStats | None = None
 
     # Dual outputs - derived from same analysis
     technical_summary: str
@@ -174,6 +190,7 @@ class AnalysisResponse(BaseModel):
     message: str = ""
     technical_summary: str | None = None
     executive_summary: str | None = None
+    executive_stats: ExecutiveStats | None = None
     repo_url: str | None = None
     model_used: str | None = None
     timeline: dict[str, Any] | None = None

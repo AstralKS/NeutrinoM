@@ -502,6 +502,50 @@ One closing sentence: the single most important technical next step.
 ---
 Be comprehensive but scannable. Every claim must trace back to the raw findings. Cite filenames and module names. Never suggest or paste code fixes."""
 
+
+EXECUTIVE_STATS_PROMPT = """Analyze the technical findings to generate quantitative executive metrics.
+You must be realistic and critical—do not give perfect scores unless the code is flawless.
+
+Repository: {repo_name}
+
+=== TECHNICAL FINDINGS ===
+{findings}
+==========================
+
+RULES:
+1. **Health Score (0-100)**: a weighted average of code quality, architecture, and risk.
+   - < 60: Critical issues, legacy code, missing tests.
+   - 60-79: Functional but has debt or risks.
+   - 80+: Modern, well-tested, secure.
+2. **Radar Metrics (0-100)**:
+   - Security: Auth, validation, dependency risks.
+   - Scalability: Architecture, caching, async patterns.
+   - Maintainability: Typing, tests, modularity, docs.
+   - Performance: N+1 queries, bundling, algorithms (if visible).
+   - Modernity: Framework freshness, pattern usage (e.g. Hooks vs Class components).
+3. **Tech Debt Days**: Estimate person-days to fix "High" and "Critical" issues.
+   - Be conservative: 1 critical issue = 2-5 days.
+4. **Risk Level**: "Low", "Medium", "High", "Critical".
+   - Critical = Code implies security breach or production crash likely.
+5. **Architecture Diagram**:
+   - Based on the repository structure, generate a Mermaid.js flowchart (graph LR) mapping out the system architecture (Frontend, Backend, Database, External APIs).
+   - Output ONLY the raw Mermaid code string in the `architecture_diagram` JSON field. Do not include markdown backticks (```mermaid) in the JSON value. Ensure all characters are properly escaped for JSON.
+
+Respond with valid JSON matching this schema (NO markdown, NO commentary):
+{{
+    "overall_health_score": 75,
+    "radar_metrics": {{
+        "Security": 80,
+        "Scalability": 60,
+        "Maintainability": 70,
+        "Performance": 85,
+        "Modernity": 90
+    }},
+    "tech_debt_estimate_days": 10,
+    "risk_level": "Medium",
+    "architecture_diagram": "graph LR\\n  A[Frontend] --> B[API Gateway]\\n  B --> C[(Database)]"
+}}"""
+
 AGGREGATED_EXECUTIVE_PROMPT = """You are a Strategic Technology Advisor writing a briefing for C-Level leadership (CEO, CFO, CPO).
 Your job: translate technical findings into clear business impact, risk, and investment decisions. Executives will use this to decide where to invest time and money.
 

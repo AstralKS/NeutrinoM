@@ -20,6 +20,7 @@ from advisor.database.models import AnalysisRecord, AnalysisRequest, AnalysisRes
 from advisor.database.repository import AnalysisRepository
 from advisor.github.client import GitHubError
 from advisor.reports.generator import generate_pdf
+from advisor.llm.client import OpenRouterError
 
 logger = logging.getLogger(__name__)
 
@@ -150,6 +151,7 @@ async def analyze_repository(request: AnalysisRequest) -> AnalysisResponse:
             message="Analysis completed successfully",
             technical_summary=result.technical_summary,
             executive_summary=result.executive_summary,
+            executive_stats=result.executive_stats,
             repo_url=result.repo_url,
             model_used=result.model_used,
             timeline=result.timeline,
@@ -167,6 +169,12 @@ async def analyze_repository(request: AnalysisRequest) -> AnalysisResponse:
         raise HTTPException(
             status_code=http_status,
             detail=str(e),
+        ) from e
+    except OpenRouterError as e:
+        http_status = getattr(e, "status_code", status.HTTP_502_BAD_GATEWAY) or status.HTTP_502_BAD_GATEWAY
+        raise HTTPException(
+            status_code=http_status,
+            detail=f"LLM Provider Error: {str(e)}",
         ) from e
     except Exception as e:
         logger.exception("Analysis failed with traceback")
