@@ -16,7 +16,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from advisor.analysis import AnalysisOrchestrator
-from advisor.api.deps import AuthenticatedUser, get_current_user
+from advisor.api.deps import AuthenticatedUser, get_current_user, get_optional_user
 from advisor.config import get_settings
 from advisor.database.client import get_supabase_client
 from advisor.database.models import AnalysisRecord, AnalysisRequest, AnalysisResponse
@@ -116,6 +116,7 @@ async def health_check() -> HealthResponse:
 )
 async def analyze_repository(
     request: AnalysisRequest,
+    user: AuthenticatedUser | None = Depends(get_optional_user),
 ) -> AnalysisResponse:
     """Analyze a GitHub repository.
 
@@ -136,7 +137,10 @@ async def analyze_repository(
         # Run analysis
         result = await orchestrator.analyze(request.repo_url)
 
-        # Check if auth rollback removed user_id (handled in models)
+        # Link to authenticated user if present
+        if user:
+            result.user_id = UUID(user.id)
+            logger.info(f"Linking analysis {result.repo_name} to user {user.id}")
 
         # Store in database
         try:

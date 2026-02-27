@@ -45,6 +45,7 @@ export interface AnalysisResult {
       error?: string;
     }>;
   };
+  api_call_timings?: number[];
   trend_data?: {
     tags_searched: string[];
     context: string;
@@ -65,9 +66,11 @@ export interface HistoryItem {
   technical_summary: string;
   executive_summary: string;
   created_at: string;
+  executive_stats?: ExecutiveStats;
   user_id?: string;
-  timeline?: Record<string, unknown>;
-  trend_data?: Record<string, unknown>;
+  timeline?: AnalysisResult['timeline'];
+  trend_data?: AnalysisResult['trend_data'];
+  api_call_timings?: number[];
 }
 
 export interface GitHubRepo {

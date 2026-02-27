@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { motion, useScroll, useMotionValueEvent } from "framer-motion";
 import { Button } from "../ui/Button";
 import { NeutrinoLogo } from "../ui/NeutrinoLogo";
 import { Menu, X, LogOut, User } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { useAuth } from "../../contexts/AuthProvider";
+import { useNavigate } from "react-router-dom";
 
 export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
@@ -79,24 +80,17 @@ export function Navbar() {
         {/* Right Actions */}
         <div className="hidden md:flex items-center gap-4">
           {!loading && user ? (
-            /* Logged in state */
             <div className="flex items-center gap-3">
               <Link
                 to="/dashboard"
                 className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 hover:border-white/20 transition-all"
               >
                 {avatarUrl ? (
-                  <img
-                    src={avatarUrl}
-                    alt={displayName}
-                    className="w-6 h-6 rounded-full"
-                  />
+                  <img src={avatarUrl} alt={displayName} className="w-6 h-6 rounded-full" />
                 ) : (
                   <User className="w-4 h-4 text-zinc-400" />
                 )}
-                <span className="text-sm text-zinc-300 max-w-24 truncate">
-                  {displayName}
-                </span>
+                <span className="text-sm text-zinc-300 max-w-24 truncate">{displayName}</span>
               </Link>
               <button
                 onClick={handleSignOut}
@@ -107,7 +101,6 @@ export function Navbar() {
               </button>
             </div>
           ) : (
-            /* Logged out state */
             <>
               <Link to="/login" className="text-sm font-medium text-zinc-300 hover:text-white transition-colors">
                 Sign in
@@ -166,20 +159,17 @@ export function Navbar() {
                     Dashboard
                   </Button>
                 </Link>
-                <button
-                  onClick={handleSignOut}
-                  className="text-sm text-zinc-500 hover:text-white flex items-center gap-2"
-                >
+                <button onClick={handleSignOut} className="text-sm text-zinc-500 hover:text-white flex items-center gap-2">
                   <LogOut className="w-4 h-4" />
                   Sign out
                 </button>
               </>
             ) : (
               <>
-                <Link to="/login" className="text-lg font-medium text-zinc-300 hover:text-white">
+                <Link to="/login" className="text-lg font-medium text-zinc-300 hover:text-white" onClick={() => setMobileMenuOpen(false)}>
                   Sign in
                 </Link>
-                <Link to="/dashboard" className="w-full block">
+                <Link to="/dashboard" className="w-full block" onClick={() => setMobileMenuOpen(false)}>
                   <Button variant="primary" className="w-full">
                     Get Started
                   </Button>

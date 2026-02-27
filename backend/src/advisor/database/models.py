@@ -152,6 +152,7 @@ class AnalysisRecord(BaseModel):
     """
 
     id: UUID | None = None
+    user_id: UUID | None = None  # Link to auth.users for RLS
     repo_url: str
     repo_name: str
     analyzed_at: datetime = Field(default_factory=datetime.utcnow)
@@ -191,6 +192,9 @@ class AnalysisRecord(BaseModel):
         # Remove id if None (let database generate it)
         if data.get("id") is None:
             data.pop("id", None)
+        # Remove user_id if None (anonymous request)
+        if data.get("user_id") is None:
+            data.pop("user_id", None)
         return data
 
     @classmethod

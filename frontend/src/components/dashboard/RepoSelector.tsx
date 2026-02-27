@@ -84,7 +84,6 @@ export function RepoSelector({ onAnalyze, isLoading }: RepoSelectorProps) {
         // Pass the provider token if available (needed for private repos)
         const token = session?.provider_token;
         if (repo.private && !token) {
-            // Optional: warn user if trying to analyze private repo without token
             console.warn("Analyzing private repo but no provider token found");
         }
         onAnalyze(repo.html_url, token ?? undefined);

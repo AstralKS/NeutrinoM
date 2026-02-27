@@ -1,165 +1,135 @@
-import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import {
-    History,
-    Calendar,
-    GitBranch,
-    ChevronRight,
-    Loader2,
-    FolderOpen,
-} from "lucide-react";
+import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import { Clock, ExternalLink, Loader2, GitBranch } from "lucide-react";
 import { UserService } from "../../services/api";
-import { useAuth } from "../../contexts/AuthProvider";
-import type { HistoryItem, AnalysisResult } from "../../types";
+import type { AnalysisResult, HistoryItem } from "../../types";
 
 interface HistorySidebarProps {
-    /** Called when the user clicks a history item */
-    onSelectAnalysis: (result: AnalysisResult) => void;
-    /** Optional trigger to force refresh history list */
-    refreshTrigger?: number;
+    onSelect: (analysis: AnalysisResult) => void;
+    refreshTrigger: number;
 }
 
-export function HistorySidebar({ onSelectAnalysis, refreshTrigger = 0 }: HistorySidebarProps) {
-    const { user } = useAuth();
+export function HistorySidebar({ onSelect, refreshTrigger }: HistorySidebarProps) {
     const [history, setHistory] = useState<HistoryItem[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [selectedId, setSelectedId] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (user) {
-            fetchHistory();
-        } else {
-            setHistory([]);
-            setLoading(false);
-        }
-    }, [user, refreshTrigger]);
+        fetchHistory();
+    }, [refreshTrigger]);
 
     const fetchHistory = async () => {
-        setLoading(true);
+        setIsLoading(true);
+        setError(null);
         try {
             const data = await UserService.getHistory();
             setHistory(data.analyses);
         } catch (err: any) {
-            // Silently handle auth errors — user session may not be fully set up
-            if (err?.response?.status !== 401 && err?.response?.status !== 403) {
-                console.error("Failed to fetch history:", err);
+            console.error("Failed to fetch history:", err);
+            // Suppress error if relation doesn't exist (db not migrated yet) but handle others
+            if (!err.response?.data?.detail?.includes("does not exist")) {
+                setError("Failed to load history.");
             }
-            setHistory([]);
         } finally {
-            setLoading(false);
+            setIsLoading(false);
         }
     };
 
     const handleSelect = (item: HistoryItem) => {
-        setSelectedId(item.id);
-        // Convert HistoryItem to AnalysisResult shape
-        onSelectAnalysis({
+        // Convert HistoryItem to AnalysisResult structure required by AnalysisView
+        const result: AnalysisResult = {
             success: true,
             message: "Loaded from history",
             repo_url: item.repo_url,
             analysis_id: item.id,
-            model_used: item.model_used,
             technical_summary: item.technical_summary,
             executive_summary: item.executive_summary,
-            timeline: item.timeline as AnalysisResult["timeline"],
-            trend_data: item.trend_data as AnalysisResult["trend_data"],
-        });
+            executive_stats: item.executive_stats,
+            model_used: item.model_used,
+            timeline: item.timeline,
+            api_call_timings: item.api_call_timings,
+            trend_data: item.trend_data,
+        };
+        onSelect(result);
     };
 
-    const formatDate = (dateStr: string) => {
-        const date = new Date(dateStr);
-        const now = new Date();
-        const diffMs = now.getTime() - date.getTime();
-        const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+    if (isLoading && history.length === 0) {
+        return (
+            <div className="w-80 h-full flex items-center justify-center border-r border-white/5 bg-black/20">
+                <Loader2 className="w-6 h-6 animate-spin text-zinc-500" />
+            </div>
+        );
+    }
 
-        if (diffDays === 0) return "Today";
-        if (diffDays === 1) return "Yesterday";
-        if (diffDays < 7) return `${diffDays}d ago`;
-        return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-    };
-
-    const extractRepoName = (url: string) => {
-        try {
-            const parts = url.replace(/\.git$/, "").split("/");
-            return parts.slice(-2).join("/");
-        } catch {
-            return url;
-        }
-    };
-
-    if (!user) return null;
+    if (error && history.length === 0) {
+        return (
+            <div className="w-80 h-full flex flex-col items-center justify-center p-6 border-r border-white/5 bg-black/20 text-center">
+                <p className="text-zinc-500 text-sm mb-4">{error}</p>
+                <button
+                    onClick={fetchHistory}
+                    className="text-indigo-400 hover:text-indigo-300 text-xs font-medium"
+                >
+                    Try Again
+                </button>
+            </div>
+        );
+    }
 
     return (
-        <motion.div
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="w-full"
-        >
-            {/* Header */}
-            <div className="flex items-center gap-2 mb-4 px-1">
-                <History className="w-4 h-4 text-indigo-400" />
-                <h3 className="text-sm font-semibold text-white">Analysis History</h3>
-                <span className="text-xs text-zinc-500 ml-auto">
-                    {history.length} {history.length === 1 ? "report" : "reports"}
-                </span>
+        <div className="w-80 h-full border-r border-white/5 bg-black/20 flex flex-col flex-shrink-0">
+            <div className="p-4 border-b border-white/5 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-zinc-400" />
+                <h3 className="font-medium text-zinc-200">Recent Analyses</h3>
             </div>
 
-            {/* Content */}
-            <div className="space-y-1.5 max-h-[calc(100vh-280px)] overflow-y-auto pr-1">
-                {loading ? (
-                    <div className="flex items-center justify-center py-8 text-zinc-500">
-                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                        <span className="text-sm">Loading...</span>
-                    </div>
-                ) : history.length === 0 ? (
-                    <div className="text-center py-8">
-                        <FolderOpen className="w-8 h-8 text-zinc-700 mx-auto mb-3" />
-                        <p className="text-sm text-zinc-500">No analyses yet</p>
-                        <p className="text-xs text-zinc-600 mt-1">
-                            Your reports will appear here
+            <div className="flex-1 overflow-y-auto w-full p-3 space-y-2 scrollbar-thin">
+                {history.length === 0 ? (
+                    <div className="text-center py-8 px-4">
+                        <p className="text-zinc-500 text-sm">No analysis history yet.</p>
+                        <p className="text-zinc-600 text-xs mt-1">
+                            Your recent scans will appear here.
                         </p>
                     </div>
                 ) : (
-                    <AnimatePresence>
-                        {history.map((item, index) => (
-                            <motion.button
-                                key={item.id}
-                                initial={{ opacity: 0, y: 5 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ delay: index * 0.03 }}
-                                onClick={() => handleSelect(item)}
-                                className={`w-full text-left p-3 rounded-xl transition-all group ${selectedId === item.id
-                                    ? "bg-indigo-500/15 border border-indigo-500/30"
-                                    : "bg-white/[0.02] border border-transparent hover:bg-white/[0.05] hover:border-white/5"
-                                    }`}
-                            >
-                                <div className="flex items-start gap-3">
-                                    <div className="min-w-0 flex-1">
-                                        <div className="flex items-center gap-1.5 mb-1">
-                                            <GitBranch className="w-3 h-3 text-zinc-500 flex-shrink-0" />
-                                            <span className="text-sm font-medium text-white truncate">
-                                                {extractRepoName(item.repo_url)}
-                                            </span>
-                                        </div>
-                                        <div className="flex items-center gap-2 text-xs text-zinc-500">
-                                            <Calendar className="w-3 h-3" />
-                                            {formatDate(item.created_at)}
-                                            <span className="text-zinc-700">•</span>
-                                            <span className="truncate">{item.model_used}</span>
-                                        </div>
-                                    </div>
-                                    <ChevronRight
-                                        className={`w-4 h-4 flex-shrink-0 transition-all mt-0.5 ${selectedId === item.id
-                                            ? "text-indigo-400"
-                                            : "text-zinc-700 group-hover:text-zinc-400"
-                                            }`}
-                                    />
+                    history.map((item, i) => (
+                        <motion.button
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: i * 0.05 }}
+                            key={item.id}
+                            onClick={() => handleSelect(item)}
+                            className="w-full text-left p-3 rounded-lg hover:bg-white/5 border border-transparent hover:border-white/10 transition-all group flex flex-col gap-2"
+                        >
+                            <div className="flex items-center justify-between w-full">
+                                <div className="flex items-center gap-2 min-w-0 pr-2">
+                                    <GitBranch className="w-3.5 h-3.5 text-indigo-400 flex-shrink-0" />
+                                    <span className="font-medium text-sm text-zinc-200 truncate group-hover:text-indigo-300 transition-colors">
+                                        {item.repo_name}
+                                    </span>
                                 </div>
-                            </motion.button>
-                        ))}
-                    </AnimatePresence>
+                                <a
+                                    href={item.repo_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    onClick={(e) => e.stopPropagation()}
+                                    className="text-zinc-500 hover:text-white flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    title="View on GitHub"
+                                >
+                                    <ExternalLink className="w-3.5 h-3.5" />
+                                </a>
+                            </div>
+                            <div className="flex items-center justify-between text-xs text-zinc-500 w-full">
+                                <span>{new Date(item.analyzed_at).toLocaleDateString()}</span>
+                                {item.model_used && (
+                                    <span className="truncate max-w-[100px] opacity-70">
+                                        {item.model_used.split("/").pop()}
+                                    </span>
+                                )}
+                            </div>
+                        </motion.button>
+                    ))
                 )}
             </div>
-        </motion.div>
+        </div>
     );
 }
