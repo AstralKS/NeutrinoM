@@ -80,6 +80,27 @@ class AnalysisRepository:
 
         return [AnalysisRecord.from_db_row(row) for row in result.data]
 
+    async def get_by_user_id(self, user_id: UUID, limit: int = 50) -> list[AnalysisRecord]:
+        """Get all analyses belonging to a specific user.
+
+        Args:
+            user_id: UUID of the authenticated user.
+            limit: Maximum number of records to return.
+
+        Returns:
+            List of analysis records for the user, newest first.
+        """
+        result = (
+            self._table
+            .select("*")
+            .eq("user_id", str(user_id))
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+
+        return [AnalysisRecord.from_db_row(row) for row in result.data]
+
     async def list_recent(self, limit: int = 20) -> list[AnalysisRecord]:
         """List recent analysis records.
 

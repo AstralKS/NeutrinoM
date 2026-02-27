@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.95.3",
     "@types/mermaid": "^9.1.0",
     "axios": "^1.13.5",
     "clsx": "^2.1.1",

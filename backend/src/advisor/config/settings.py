@@ -36,6 +36,10 @@ class Settings(BaseSettings):
         ...,
         description="Supabase service role key (backend only)",
     )
+    supabase_jwt_secret: str = Field(
+        ...,
+        description="Supabase JWT secret for token verification",
+    )
 
     # OpenRouter API Keys (multiple for rotation/fallback)
     openrouter_api_key_1: str = Field(

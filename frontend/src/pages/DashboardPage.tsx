@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Navbar } from "../components/layout/Navbar";
 import { Footer } from "../components/layout/Footer";
-import { RepoInput } from "../components/dashboard/RepoInput";
+import { RepoSelector } from "../components/dashboard/RepoSelector";
 import { AnalysisView } from "../components/dashboard/AnalysisView";
 import { AnalysisService } from "../services/api";
 import type { AnalysisResult } from "../types";
@@ -23,7 +23,7 @@ export function DashboardPage() {
         throw new Error("Backend API is unreachable. Please ensure the server is running.");
       }
 
-      const data = await AnalysisService.analyzeRepo({ repo_url: url, access_token: token });
+      const data = await AnalysisService.analyzeRepo({ repo_url: url, github_token: token });
 
       if (data.success) {
         setResult(data);
@@ -65,7 +65,12 @@ export function DashboardPage() {
         )}
 
         {!result ? (
-          <RepoInput onAnalyze={handleAnalyze} isLoading={isLoading} />
+          <div className="flex gap-8 justify-center">
+            {/* Repo Selector */}
+            <div className="flex-1 min-w-0 max-w-2xl mx-auto">
+              <RepoSelector onAnalyze={handleAnalyze} isLoading={isLoading} />
+            </div>
+          </div>
         ) : (
           <div className="space-y-6">
             <button

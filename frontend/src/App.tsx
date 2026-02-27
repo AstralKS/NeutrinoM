@@ -6,7 +6,6 @@ import { FeaturesSection } from "./components/features/FeaturesSection";
 import { DashboardPreviewSection } from "./components/features/DashboardPreviewSection";
 import { Footer } from "./components/layout/Footer";
 import { DashboardPage } from "./pages/DashboardPage";
-import { LoginPage } from "./pages/LoginPage";
 import { AnalysisService } from "./services/api";
 
 function LandingPage() {
@@ -21,7 +20,9 @@ function LandingPage() {
   );
 }
 
-function App() {
+/* Auth removed following rollback-auth requirements */
+
+function AppRoutes() {
   // Wake up backend on initial load (Render free tier sleeps after inactivity)
   useEffect(() => {
     AnalysisService.checkHealth().catch(() => {
@@ -30,12 +31,17 @@ function App() {
   }, []);
 
   return (
+    <Routes>
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/dashboard" element={<DashboardPage />} />
+    </Routes>
+  );
+}
+
+function App() {
+  return (
     <Router>
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/login" element={<LoginPage />} />
-      </Routes>
+      <AppRoutes />
     </Router>
   );
 }
