@@ -285,14 +285,14 @@ class AnalysisOrchestrator:
                 seen.add(t.lower())
                 final_tags.append(t.lower())
         
-        tags = final_tags[:5]
+        tags = final_tags[:7]
 
 
         logger.info(f"Searching trends for {len(tags)} technologies: {tags}")
 
         try:
-            from advisor.trends.pipeline import TrendPipeline as TrendMaster
-            from advisor.trends.rag_store import RAGStore as RAGManager
+            from trend_engine.search.pipeline import TrendSearchPipeline as TrendMaster
+            from advisor.trends import RAGStore as RAGManager
 
             rag = RAGManager()
             trend_master = TrendMaster()
@@ -343,10 +343,10 @@ class AnalysisOrchestrator:
                     async with sem:
                         try:
                             t0 = time.time()
-                            # Enforce strict 30s timeout per tag to ensure global responsiveness
+                            # Enforce strict 45s timeout per tag to ensure global responsiveness
                             result = await asyncio.wait_for(
                                 trend_master.analyze_tag(tag),
-                                timeout=30.0
+                                timeout=45.0
                             )
                             ms = int((time.time() - t0) * 1000)
                             self._timeline.add_api_call(
@@ -364,7 +364,7 @@ class AnalysisOrchestrator:
                 try:
                     results = await asyncio.wait_for(
                         asyncio.gather(*[_analyze_tag_safe(t) for t in uncached_tags]),
-                        timeout=40.0  # Global timeout for all tags
+                        timeout=120.0  # Global timeout for all tags
                     )
                     fresh_insights = [r for r in results if r]
                 except asyncio.TimeoutError:
@@ -403,7 +403,7 @@ class AnalysisOrchestrator:
         version_info = getattr(insight, "version_info", "")
 
         parts = [f"**{tag}** ({source_label}):"]
-        parts.append(f"  Key Points: {'; '.join(points[:5])}")
+        parts.append(f"  Key Points: {'; '.join(points[:15])}")
 
         if latest_version:
             parts.append(f"  Latest Version: {latest_version}")
@@ -414,14 +414,13 @@ class AnalysisOrchestrator:
         if direction:
             parts.append(f"  Direction: {direction}")
         if risks:
-            parts.append(f"  Risks: {'; '.join(risks[:3])}")
+            parts.append(f"  Risks: {'; '.join(risks[:7])}")
         if opps:
-            parts.append(f"  Opportunities: {'; '.join(opps[:3])}")
+            parts.append(f"  Opportunities: {'; '.join(opps[:7])}")
 
-        # Include top sources with links
         if sources:
             src_lines = []
-            for s in sources[:3]:
+            for s in sources[:7]:
                 title = getattr(s, "title", "")
                 url = getattr(s, "url", "")
                 score = getattr(s, "score", 0)

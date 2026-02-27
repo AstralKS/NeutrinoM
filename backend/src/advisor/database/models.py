@@ -5,6 +5,8 @@ All analysis output is stored as JSONB for flexibility.
 """
 
 from datetime import datetime
+import json
+import re
 from typing import Any
 from uuid import UUID
 
@@ -195,11 +197,45 @@ class AnalysisRecord(BaseModel):
         # Remove user_id if None (anonymous request)
         if data.get("user_id") is None:
             data.pop("user_id", None)
+            
+        # Serialize unmigrated dictionary columns into executive_summary to bypass schema validation
+        meta = {
+            "executive_stats": data.pop("executive_stats", None),
+            "trend_data": data.pop("trend_data", None),
+            "timeline": data.pop("timeline", None),
+        }
+        
+        exec_sum = data.get("executive_summary", "")
+        # Remove existing meta wrapper if present
+        exec_sum = re.sub(r'\n\n<!-- __META__:.* -->$', '', exec_sum)
+        
+        # Append the new meta wrapper
+        data["executive_summary"] = f"{exec_sum}\n\n<!-- __META__:{json.dumps(meta)} -->"
+        
         return data
 
     @classmethod
     def from_db_row(cls, row: dict[str, Any]) -> "AnalysisRecord":
         """Create instance from database row."""
+        # Unpack serialized metadata from executive_summary
+        exec_sum = row.get("executive_summary", "")
+        match = re.search(r'\n\n<!-- __META__:(.*) -->$', exec_sum)
+        
+        if match:
+            try:
+                meta = json.loads(match.group(1))
+                row["executive_summary"] = exec_sum[:match.start()]
+                
+                # Restore columns if they aren't natively in the row
+                if "executive_stats" not in row or row["executive_stats"] is None:
+                    row["executive_stats"] = meta.get("executive_stats")
+                if "trend_data" not in row or row["trend_data"] is None:
+                    row["trend_data"] = meta.get("trend_data")
+                if "timeline" not in row or row["timeline"] is None:
+                    row["timeline"] = meta.get("timeline")
+            except json.JSONDecodeError:
+                pass
+                
         return cls.model_validate(row)
 
 

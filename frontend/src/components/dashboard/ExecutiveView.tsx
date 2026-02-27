@@ -311,19 +311,10 @@ const ExecutiveView: React.FC<ExecutiveViewProps> = ({ summary, stats }) => {
           <TldrStrip data={stats.tldr_strip} />
         )}
 
-        {/* ---- Interleaved Sections (new structured format) ---- */}
-        {hasSections && (
-          <div className="space-y-8">
-            {stats!.sections!.map((section, idx) => (
-              <InterleavedSection key={idx} section={section} index={idx} />
-            ))}
-          </div>
-        )}
-
-        {/* ---- Fallback: Markdown Text Content (legacy / when sections empty) ---- */}
-        {!hasSections && (
+        {/* ---- Executive Report Markdown Content ---- */}
+        {summary && summary !== "*No executive summary available.*" && (
           <div className="bg-slate-900/30 border border-slate-800/50 rounded-xl p-8 backdrop-blur-sm">
-            <div className="prose prose-invert max-w-none prose-headings:text-cyan-400 prose-a:text-violet-400">
+            <div className="prose prose-invert max-w-none prose-headings:text-cyan-400 prose-a:text-violet-400 print:prose-p:text-slate-800 print:text-slate-800 text-slate-300 leading-relaxed">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                 {summary}
               </ReactMarkdown>

@@ -16,6 +16,7 @@ export function DashboardPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const handleAnalyze = async (url: string, token?: string) => {
     setIsLoading(true);
@@ -31,6 +32,7 @@ export function DashboardPage() {
 
       if (data.success) {
         setResult(data);
+        setIsSidebarOpen(false);
         if (user) {
           setHistoryRefreshTrigger((prev) => prev + 1);
         }
@@ -49,6 +51,7 @@ export function DashboardPage() {
   const handleHistorySelect = (historyResult: AnalysisResult) => {
     setResult(historyResult);
     setError(null);
+    setIsSidebarOpen(false);
   };
 
   return (
@@ -60,6 +63,8 @@ export function DashboardPage() {
           <HistorySidebar
             onSelect={handleHistorySelect}
             refreshTrigger={historyRefreshTrigger}
+            isOpen={isSidebarOpen}
+            onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
           />
         )}
         <main className="flex-1 overflow-y-auto px-6 py-12 relative z-10 scrollbar-thin">
@@ -93,7 +98,10 @@ export function DashboardPage() {
           ) : (
             <div className="space-y-6">
               <button
-                onClick={() => setResult(null)}
+                onClick={() => {
+                  setResult(null);
+                  setIsSidebarOpen(true);
+                }}
                 className="text-sm text-zinc-500 hover:text-white transition-colors mb-4"
               >
                 ← Analyze another repository

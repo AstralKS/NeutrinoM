@@ -31,13 +31,12 @@ from datetime import UTC, datetime
 
 import pytest
 
-from advisor.trends.content_extractor import (
-    DEPRECATION_KEYWORDS,
+from trend_engine.search.extractor import (
+    _KEYWORD_MAP,
     _extract_versions,
-    _has_keywords,
     extract_signals,
 )
-from advisor.trends.models import (
+from trend_engine.models import (
     ExtractedSignal,
     RankedResult,
     SearchQuery,
@@ -48,12 +47,12 @@ from advisor.trends.models import (
     TrendInsight,
     TrendSourceInfo,
 )
-from advisor.trends.query_planner import (
+from trend_engine.search.query_planner import (
     plan_github_queries,
     plan_hn_queries,
     plan_queries,
 )
-from advisor.trends.ranker import (
+from trend_engine.search.ranker import (
     _authority_score,
     _freshness_score,
     _normalize_url,
@@ -179,14 +178,9 @@ class TestContentExtractor:
 
     def test_has_keywords(self):
         """Keyword matching works correctly."""
-        assert _has_keywords(
-            "this feature is deprecated",
-            DEPRECATION_KEYWORDS,
-        )
-        assert not _has_keywords(
-            "this is totally fine",
-            DEPRECATION_KEYWORDS,
-        )
+        keywords = _KEYWORD_MAP[SignalType.DEPRECATION][0]
+        assert any(kw in "this feature is deprecated" for kw in keywords)
+        assert not any(kw in "this is totally fine" for kw in keywords)
 
 
 # --- Ranker tests ---
@@ -307,16 +301,16 @@ class TestBackwardCompat:
     def test_trendmaster_alias(self):
         """TrendMaster is importable as alias."""
         from advisor.trends import TrendMaster
-        from advisor.trends.pipeline import TrendPipeline
+        from trend_engine.search.pipeline import TrendSearchPipeline
 
-        assert TrendMaster is TrendPipeline
+        assert TrendMaster is TrendSearchPipeline
 
     def test_ragmanager_alias(self):
         """RAGManager is importable as alias."""
         from advisor.trends import RAGManager
-        from advisor.trends.rag_store import RAGStore
+        from advisor.trends import _RAGStoreCompat
 
-        assert RAGManager is RAGStore
+        assert RAGManager is _RAGStoreCompat
 
     def test_import_trendinsight(self):
         """TrendInsight is importable from package."""

@@ -32,7 +32,7 @@ class ReportAgent:
         """Lazy-load RAG manager to avoid import errors if not configured."""
         if self._rag is None:
             try:
-                from advisor.trends.rag_store import RAGStore
+                from advisor.trends import RAGStore
                 self._rag = RAGStore()
             except Exception as e:
                 logger.warning(f"RAG not available: {e}")
@@ -109,15 +109,18 @@ class ReportAgent:
             ),
             self._llm.complete(
                 prompt=stats_prompt,
-                system_prompt="Data Analyst. Output strictly valid JSON.",
+                system_prompt="Data Analyst. Output strictly valid JSON. NEVER wrap the mermaid syntax in markdown backticks, provide just the raw javascript syntax.",
                 temperature=0.1,
+                parse_json=True
             ),
         )
 
         # Parse stats safely
         stats = None
         try:
-            stats_dict = parse_llm_json(stats_result["content"])
+            stats_dict = stats_result["content"]
+            if isinstance(stats_dict, str):
+                stats_dict = parse_llm_json(stats_dict)
             stats = ExecutiveStats(**stats_dict)
         except Exception as e:
             logger.warning(f"Failed to parse executive stats: {e}")
