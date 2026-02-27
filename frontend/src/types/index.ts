@@ -1,3 +1,17 @@
+export interface ProStat {
+  id: string; // e.g., "health", "roi", "risk"
+  label: string;
+  value: string | number;
+  trend: string; // e.g., "+12%", "Critical"
+  trend_direction: 'up' | 'down' | 'neutral';
+}
+
+export interface DeepSection {
+  title: string;
+  detailed_markdown: string;
+  associated_stat?: ProStat | null;
+}
+
 export interface ExecutiveStats {
   overall_health_score: number;
   radar_metrics: {
@@ -10,6 +24,8 @@ export interface ExecutiveStats {
   tech_debt_estimate_days: number;
   risk_level: 'Low' | 'Medium' | 'High' | 'Critical';
   architecture_diagram?: string;
+  tldr_strip?: Record<string, string>;
+  sections?: DeepSection[];
 }
 
 export interface AnalysisResult {

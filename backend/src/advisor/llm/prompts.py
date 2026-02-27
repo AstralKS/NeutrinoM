@@ -503,7 +503,7 @@ One closing sentence: the single most important technical next step.
 Be comprehensive but scannable. Every claim must trace back to the raw findings. Cite filenames and module names. Never suggest or paste code fixes."""
 
 
-EXECUTIVE_STATS_PROMPT = """Analyze the technical findings to generate quantitative executive metrics.
+EXECUTIVE_STATS_PROMPT = """Analyze the technical findings to generate quantitative executive metrics AND a structured executive report broken into sections.
 You must be realistic and critical—do not give perfect scores unless the code is flawless.
 
 Repository: {repo_name}
@@ -530,6 +530,12 @@ RULES:
 5. **Architecture Diagram**:
    - Based on the repository structure, generate a Mermaid.js flowchart (graph LR) mapping out the system architecture (Frontend, Backend, Database, External APIs).
    - Output ONLY the raw Mermaid code string in the `architecture_diagram` JSON field. Do not include markdown backticks (```mermaid) in the JSON value. Ensure all characters are properly escaped for JSON.
+6. **tldr_strip**: A quick-glance object with the most important KPIs for the top banner.
+7. **sections**: An ordered array of report sections. Each section MUST have:
+   - `title`: clear heading (e.g. "Executive Overview", "Business Risk", "Growth Opportunities").
+   - `detailed_markdown`: STRICT INSTRUCTION: Must be deep, comprehensive analysis (min 150 words per section). Do not summarize or bullet-point everything. Write like a senior McKinsey consultant. Do not dilute the text just because a stat is present. The text should read like a premium technical due diligence report.
+   - `associated_stat` (optional): ONE relevant inline metric for the section. Use `id` to hint at rendering style: "roi", "risk", "health", "debt", "trend". Must also include `label`, `value`, `trend` (e.g. "+12%"), and `trend_direction` ("up", "down", "neutral").
+   Generate 5-8 sections covering: Executive Overview, Business Model, Growth Opportunities, Risk Assessment, Technology Position, Investment Roadmap, and an optional Summary.
 
 Respond with valid JSON matching this schema (NO markdown, NO commentary):
 {{
@@ -543,7 +549,37 @@ Respond with valid JSON matching this schema (NO markdown, NO commentary):
     }},
     "tech_debt_estimate_days": 10,
     "risk_level": "Medium",
-    "architecture_diagram": "graph LR\\n  A[Frontend] --> B[API Gateway]\\n  B --> C[(Database)]"
+    "architecture_diagram": "graph LR\\n  A[Frontend] --> B[API Gateway]\\n  B --> C[(Database)]",
+    "tldr_strip": {{
+        "overall_health": "75/100",
+        "tech_debt_days": "10 days",
+        "risk_level": "Medium",
+        "top_opportunity": "Add caching layer for 3x throughput"
+    }},
+    "sections": [
+        {{
+            "title": "Executive Overview",
+            "detailed_markdown": "The codebase is currently in a production-ready state, built upon a modern, highly scalable technology stack. However, it carries a moderate amount of technical debt that must be addressed to ensure long-term stability and velocity. The architecture exhibits strong foundational patterns, particularly within the API layer, which is logically separated and well-structured, allowing for agile feature development. The comprehensive use of type safety throughout the system significantly reduces the likelihood of runtime errors and enhances developer confidence during refactoring. Despite these strengths, certain areas, notably dependency management and test coverage in edge cases, require immediate attention. Accumulating technical debt in these domains introduces creeping maintenance costs and elevates the risk of unforeseen regressions. To maintain competitive advantage and support future scaling initiatives, it is imperative to allocate dedicated engineering cycles toward paying down this debt, thereby fortifying the platform's resilience and accelerating future product iteration cycles.",
+            "associated_stat": {{
+                "id": "health",
+                "label": "Codebase Health",
+                "value": "75/100",
+                "trend": "Stable",
+                "trend_direction": "neutral"
+            }}
+        }},
+        {{
+            "title": "Risk Assessment",
+            "detailed_markdown": "A thorough security analysis has uncovered two high-severity vulnerabilities within the authentication handling mechanisms. These gaps expose the system to potential unauthorized access and data breaches, representing a significant risk to the business in terms of both financial liability and reputational damage. The current implementation of session management and token validation lacks industry-standard cryptographic rigorousness, making it susceptible to exploitation vectors such as token hijacking or replay attacks. It is absolutely critical that these vulnerabilities are prioritized for immediate remediation. Addressing these issues within the next sprint (approximately two weeks) is projected to reduce the overall breach risk by an estimated 80%. The remediation effort will require implementing robust OAuth2/OIDC compliant flows, strengthening password hashing algorithms, and enforcing strict session timeout protocols. Failure to act on these findings promptly leaves the organization vulnerable to substantial operational disruption and compliance penalties.",
+            "associated_stat": {{
+                "id": "risk",
+                "label": "Security Risk",
+                "value": "High",
+                "trend": "2 Critical CVEs",
+                "trend_direction": "down"
+            }}
+        }}
+    ]
 }}"""
 
 AGGREGATED_EXECUTIVE_PROMPT = """You are a Strategic Technology Advisor writing a briefing for C-Level leadership (CEO, CFO, CPO).

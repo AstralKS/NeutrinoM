@@ -87,8 +87,28 @@ class Integration(BaseModel):
     cost_tier: str = ""  # free, low, medium, high, enterprise
 
 
+class ProStat(BaseModel):
+    """Visual stat widget to be rendered inline with report sections."""
+
+    id: str = Field(description='e.g., "health", "roi", "risk"')
+    label: str
+    value: str | int
+    trend: str = Field(description='e.g., "+12%", "Critical"')
+    trend_direction: str = Field(description='"up", "down", "neutral"')
+
+
+class DeepSection(BaseModel):
+    """A single section of the interleaved executive report."""
+
+    title: str
+    detailed_markdown: str = Field(
+        description="STRICT INSTRUCTION: Must be deep, comprehensive analysis (min 150 words per section). Do not summarize or bullet-point everything. Write like a senior McKinsey consultant."
+    )
+    associated_stat: ProStat | None = None
+
+
 class ExecutiveStats(BaseModel):
-    """Quantitative executive statistics."""
+    """Quantitative executive statistics with optional interleaved sections."""
 
     overall_health_score: int = Field(ge=0, le=100)
     radar_metrics: dict[str, int] = Field(
@@ -98,7 +118,17 @@ class ExecutiveStats(BaseModel):
     risk_level: str = Field(pattern="^(Low|Medium|High|Critical)$")
     architecture_diagram: str | None = Field(
         default=None,
-        description="Raw Mermaid.js flowchart string representing the system architecture"
+        description="Raw Mermaid.js flowchart string representing the system architecture",
+    )
+
+    # Interleaved executive report sections
+    tldr_strip: dict[str, Any] | None = Field(
+        default=None,
+        description="Quick-glance KPIs: overall_health, tech_debt_days, risk_level, top_opportunity, etc.",
+    )
+    sections: list[DeepSection] = Field(
+        default_factory=list,
+        description="Ordered report sections with optional inline stat widgets",
     )
 
 
@@ -129,7 +159,8 @@ class AnalysisRecord(BaseModel):
 
     # Structured analysis output
     tech_stack: TechStackInfo
-    architecture_patterns: list[ArchitecturePattern] = Field(default_factory=list)
+    architecture_patterns: list[ArchitecturePattern] = Field(
+        default_factory=list)
     risks_and_gaps: list[RiskItem] = Field(default_factory=list)
     recommendations: list[Recommendation] = Field(default_factory=list)
 
