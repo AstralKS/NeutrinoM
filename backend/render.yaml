@@ -1,3 +1,7 @@
+# ──────────────────────────────────────────────
+# Render Blueprint — Neutrino API
+# https://render.com/docs/blueprint-spec
+# ──────────────────────────────────────────────
 services:
   - type: web
     name: neutrino-api
@@ -5,15 +9,25 @@ services:
     region: oregon
     plan: free
     rootDir: backend
-    buildCommand: pip install .
-    startCommand: uvicorn advisor.api.endpoints:app --host 0.0.0.0 --port $PORT
+    pythonVersion: "3.11.11"
+    buildCommand: |
+      pip install --upgrade pip &&
+      pip install -r requirements.txt
+    startCommand: uvicorn advisor.api.endpoints:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /health
+    autoDeploy: true
     envVars:
+      # ── Python ──
       - key: PYTHON_VERSION
         value: "3.11.11"
+      # ── Supabase ──
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+      - key: SUPABASE_JWT_SECRET
+        sync: false
+      # ── LLM (OpenRouter) — multiple keys for rotation ──
       - key: OPENROUTER_API_KEY_1
         sync: false
       - key: OPENROUTER_API_KEY_2
@@ -22,7 +36,11 @@ services:
         sync: false
       - key: OPENROUTER_API_KEY_4
         sync: false
+      # ── Search & GitHub ──
       - key: SERPER_API_KEY
         sync: false
       - key: GITHUB_TOKEN
         sync: false
+      # ── CORS ──
+      - key: ALLOWED_ORIGINS
+        value: "https://neutrino-app.vercel.app,https://neutrino.vercel.app"

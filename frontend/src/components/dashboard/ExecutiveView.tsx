@@ -126,7 +126,7 @@ const ExecutiveView: React.FC<ExecutiveViewProps> = ({ summary, stats }) => {
     ]
     : [];
 
-  const hasSections = stats?.sections && stats.sections.length > 0;
+  // const hasSections = stats?.sections && stats.sections.length > 0;
 
   /* ---- PDF handler ---- */
   const generatePdf = useReactToPrint({
@@ -366,4 +366,4 @@ const ExecutiveView: React.FC<ExecutiveViewProps> = ({ summary, stats }) => {
   );
 };
 
-export { ExecutiveView };
+export { ExecutiveView, InterleavedSection };

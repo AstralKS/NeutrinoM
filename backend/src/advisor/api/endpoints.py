@@ -83,10 +83,19 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS middleware for Streamlit frontend
+# CORS middleware — environment-aware origins
+import os as _os
+
+_allowed_origins_env = _os.getenv("ALLOWED_ORIGINS", "")
+_allowed_origins = (
+    [o.strip() for o in _allowed_origins_env.split(",") if o.strip()]
+    if _allowed_origins_env
+    else ["*"]  # permissive in local dev only
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, restrict this
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
