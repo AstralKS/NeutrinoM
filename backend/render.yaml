@@ -9,7 +9,6 @@ services:
     region: oregon
     plan: free
     rootDir: backend
-    pythonVersion: "3.11.11"
     buildCommand: |
       pip install --upgrade pip &&
       pip install -r requirements.txt
