@@ -10,7 +10,7 @@ import re
 from typing import Any
 from uuid import UUID
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class TechStackInfo(BaseModel):
@@ -117,7 +117,9 @@ class ExecutiveStats(BaseModel):
         description="Scores 0-100 for Security, Scalability, Maintainability, Performance, Modernity"
     )
     tech_debt_estimate_days: int = Field(ge=0)
-    risk_level: str = Field(pattern="^(Low|Medium|High|Critical)$")
+    risk_level: str = Field(
+        description="Risk level: Low, Medium, High, or Critical"
+    )
     architecture_diagram: str | None = Field(
         default=None,
         description="Raw Mermaid.js flowchart string representing the system architecture",
@@ -132,6 +134,18 @@ class ExecutiveStats(BaseModel):
         default_factory=list,
         description="Ordered report sections with optional inline stat widgets",
     )
+
+    @field_validator("risk_level", mode="before")
+    @classmethod
+    def normalize_risk_level(cls, v: str) -> str:
+        """Normalize risk_level to title case (LLMs often return lowercase)."""
+        if isinstance(v, str):
+            normalized = v.strip().title()
+            if normalized in ("Low", "Medium", "High", "Critical"):
+                return normalized
+            # Fallback for unexpected values
+            return "Medium"
+        return "Medium"
 
 
 class RepositoryMetadata(BaseModel):
@@ -249,6 +263,7 @@ class AnalysisRequest(BaseModel):
     )
     access_token: str | None = Field(
         default=None,
+        alias="github_token",
         description="GitHub access token for private repos (ephemeral, never stored)",
     )
 

@@ -1,114 +1,70 @@
-import React, { useRef, useState } from 'react';
+import React from 'react';
 import { motion } from 'framer-motion';
 import {
-  Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer,
-  PieChart, Pie, Cell, Tooltip
+  Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer,
 } from 'recharts';
-import { AlertTriangle, Shield, Clock, Loader2, DownloadCloud } from 'lucide-react';
+import { AlertTriangle, Shield, Clock, Lightbulb, Activity, CheckCircle2, Zap } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useReactToPrint } from 'react-to-print';
 import { ArchitectureDiagram } from './ArchitectureDiagram';
-import { ProStatCard } from './ProStatCard';
-import type { ExecutiveStats, DeepSection } from '../../types';
-
-/* ------------------------------------------------------------------ */
-/*  Props                                                              */
-/* ------------------------------------------------------------------ */
+import type { ExecutiveStats } from '../../types';
 
 interface ExecutiveViewProps {
   summary: string;
   stats?: ExecutiveStats;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Constants                                                          */
-/* ------------------------------------------------------------------ */
-
 const COLORS = {
   cyan: '#06b6d4',
-  violet: '#8b5cf6',
-  red: '#ef4444',
+  emerald: '#10b981',
   yellow: '#eab308',
-  green: '#22c55e',
-  slate: '#94a3b8',
+  red: '#ef4444',
 };
 
-const getHealthColor = (score: number) => {
-  if (score >= 80) return COLORS.green;
-  if (score >= 60) return COLORS.yellow;
-  return COLORS.red;
+const getVerdict = (score: number) => {
+  if (score >= 80) return { title: "Healthy", desc: "No immediate critical actions required. System is stable.", color: "text-emerald-400", bg: "bg-emerald-500/10", border: "border-emerald-500/20", glow: "shadow-[0_0_30px_rgba(16,185,129,0.15)]", Icon: CheckCircle2 };
+  if (score >= 60) return { title: "Needs Attention", desc: "Moderate tech debt and potential risks detected.", color: "text-yellow-400", bg: "bg-yellow-500/10", border: "border-yellow-500/20", glow: "shadow-[0_0_30px_rgba(234,179,8,0.15)]", Icon: Activity };
+  return { title: "Critical Risk", desc: "Immediate action recommended to address structural issues.", color: "text-red-400", bg: "bg-red-500/10", border: "border-red-500/20", glow: "shadow-[0_0_30px_rgba(239,68,68,0.15)]", Icon: AlertTriangle };
 };
-
-/* ------------------------------------------------------------------ */
-/*  PDF Export Configuration                                           */
-/* ------------------------------------------------------------------ */
-// Handled via useReactToPrint hook inside the component.
-
-/* ------------------------------------------------------------------ */
-/*  TL;DR Strip                                                        */
-/* ------------------------------------------------------------------ */
 
 function TldrStrip({ data }: { data: Record<string, string> }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
-      className="grid grid-cols-2 md:grid-cols-4 gap-3"
+      transition={{ delay: 0.1 }}
+      className="grid grid-cols-1 md:grid-cols-2 gap-4"
     >
-      {Object.entries(data).map(([key, value]) => (
-        <div
-          key={key}
-          className="rounded-lg border border-slate-700/50 bg-slate-800/40 px-4 py-3 backdrop-blur-sm"
-        >
-          <p className="text-[10px] font-medium uppercase tracking-widest text-slate-500">
-            {key.replace(/_/g, ' ')}
-          </p>
-          <p className="mt-1 text-sm font-semibold text-white">{value}</p>
-        </div>
-      ))}
+      {Object.entries(data).map(([key, value]) => {
+        const isOpportunity = key.toLowerCase().includes('opportunity');
+        const theme = isOpportunity 
+          ? { bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', text: 'text-cyan-400', Icon: Zap }
+          : { bg: 'bg-violet-500/10', border: 'border-violet-500/30', text: 'text-violet-400', Icon: Lightbulb };
+
+        return (
+          <div
+            key={key}
+            className={`flex items-start gap-4 rounded-2xl border ${theme.border} ${theme.bg} p-6 backdrop-blur-sm shadow-xl`}
+          >
+            <div className={`p-3 rounded-xl bg-white/5 ${theme.text}`}>
+              <theme.Icon className="w-6 h-6" />
+            </div>
+            <div>
+              <h4 className={`text-xs font-bold tracking-wider uppercase mb-1.5 ${theme.text}`}>
+                {key.replace(/_/g, ' ')}
+              </h4>
+              <p className="text-sm font-medium text-slate-200 leading-relaxed">
+                {value}
+              </p>
+            </div>
+          </div>
+        );
+      })}
     </motion.div>
   );
 }
-
-/* ------------------------------------------------------------------ */
-/*  Interleaved Section Renderer                                       */
-/* ------------------------------------------------------------------ */
-
-function InterleavedSection({ section, index }: { section: DeepSection; index: number }) {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 16 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.06 }}
-      className="space-y-6"
-    >
-      <h2 className="text-xl font-semibold text-cyan-400 print:text-cyan-600">{section.title}</h2>
-
-      {section.associated_stat && (
-        <div className="mt-2 text-slate-100">
-          <ProStatCard stat={section.associated_stat} />
-        </div>
-      )}
-
-      <div className="prose prose-invert prose-slate max-w-none text-slate-300 leading-relaxed print:prose-p:text-slate-800 print:text-slate-800">
-        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-          {section.detailed_markdown}
-        </ReactMarkdown>
-      </div>
-    </motion.div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/*  Main Component                                                     */
-/* ------------------------------------------------------------------ */
 
 const ExecutiveView: React.FC<ExecutiveViewProps> = ({ summary, stats }) => {
-  const reportRef = useRef<HTMLDivElement>(null);
-  const [exporting, setExporting] = useState(false);
-
-  /* ---- Derived data ---- */
   const radarData = stats
     ? Object.entries(stats.radar_metrics).map(([key, value]) => ({
       subject: key,
@@ -117,253 +73,168 @@ const ExecutiveView: React.FC<ExecutiveViewProps> = ({ summary, stats }) => {
     }))
     : [];
 
-  const healthColor = stats ? getHealthColor(stats.overall_health_score) : COLORS.slate;
+  const filteredTldr = stats?.tldr_strip
+    ? Object.fromEntries(
+        Object.entries(stats.tldr_strip).filter(
+          ([k]) => !['health', 'debt', 'risk'].some(skip => k.toLowerCase().includes(skip))
+        )
+      )
+    : {};
 
-  const healthData = stats
-    ? [
-      { name: 'Score', value: stats.overall_health_score },
-      { name: 'Remaining', value: 100 - stats.overall_health_score },
-    ]
-    : [];
+  const verdict = stats ? getVerdict(stats.overall_health_score) : null;
 
-  // const hasSections = stats?.sections && stats.sections.length > 0;
-
-  /* ---- PDF handler ---- */
-  const generatePdf = useReactToPrint({
-    contentRef: reportRef,
-    documentTitle: `Executive_Report_${new Date().toISOString().split('T')[0]}`,
-    onBeforePrint: () => {
-      setExporting(true);
-      return Promise.resolve();
-    },
-    onAfterPrint: () => {
-      setExporting(false);
-    },
-    onPrintError: () => {
-      setExporting(false);
-    }
-  });
-
-  const handleExportPdf = () => {
-    if (!exporting) {
-      generatePdf();
-    }
-  };
-
-  /* ---- Render ---- */
   return (
-    <div className="space-y-6">
-      {/* Download PDF button */}
-      <div className="flex justify-end">
-        <button
-          onClick={handleExportPdf}
-          disabled={exporting}
-          className="inline-flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800/60 px-4 py-2 text-sm font-medium text-slate-300 transition-colors hover:border-cyan-500/40 hover:bg-cyan-500/10 hover:text-cyan-400 disabled:opacity-50"
+    <div className="space-y-8 animate-in fade-in duration-700">
+      
+      {/* 1. HERO VERDICT */}
+      {stats && verdict && (
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          className={`relative overflow-hidden rounded-3xl border ${verdict.border} bg-slate-900/80 backdrop-blur-xl ${verdict.glow}`}
         >
-          {exporting ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <DownloadCloud className="h-4 w-4" />
-          )}
-          {exporting ? 'Generating PDF…' : 'Download PDF'}
-        </button>
-      </div>
-
-      {/* ===== Exportable Report Container ===== */}
-      <div id="executive-report-container" ref={reportRef} className="space-y-8 animate-in fade-in duration-500 pdf-container print:bg-white print:text-black print:p-8">
-
-        {/* ---- Top Section: Visual Dashboard ---- */}
-        {stats && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-            {/* Health Score Donut */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-slate-900/50 border border-slate-800 p-6 rounded-xl flex flex-col items-center justify-center relative backdrop-blur-sm"
-            >
-              <h3 className="text-slate-400 text-sm font-medium uppercase tracking-wider mb-4">Overall Health</h3>
-              <div className="h-48 w-full relative">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={healthData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={60}
-                      outerRadius={80}
-                      startAngle={180}
-                      endAngle={0}
-                      paddingAngle={0}
-                      dataKey="value"
-                      stroke="none"
-                    >
-                      <Cell key="score" fill={healthColor} />
-                      <Cell key="remaining" fill="#1e293b" />
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
-                <div className="absolute inset-0 flex flex-col items-center justify-center pt-8">
-                  <span className="text-4xl font-bold text-white">{stats.overall_health_score}</span>
-                  <span className="text-xs text-slate-500">/ 100</span>
-                </div>
-              </div>
-            </motion.div>
-
-            {/* Architecture Diagram */}
-            {stats.architecture_diagram && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1 }}
-                className="col-span-1 lg:col-span-2 bg-slate-900/50 border border-slate-800 rounded-xl p-0 overflow-hidden backdrop-blur-sm shadow-xl shadow-cyan-900/5"
-              >
-                <ArchitectureDiagram
-                  chart={stats.architecture_diagram}
-                  className="h-full border-0 bg-transparent"
+          {/* Subtle gradient background */}
+          <div className={`absolute inset-0 opacity-20 bg-gradient-to-br from-transparent to-current ${verdict.color}`} />
+          
+          <div className="relative p-8 md:p-10 flex flex-col md:flex-row items-center gap-10">
+            {/* Health Score Circular Display */}
+            <div className="flex-shrink-0 flex flex-col items-center justify-center w-48 h-48 rounded-full border-4 border-white/5 bg-slate-950/50 shadow-inner relative">
+              <svg className="absolute inset-0 w-full h-full transform -rotate-90">
+                <circle cx="96" cy="96" r="88" stroke="currentColor" strokeWidth="8" fill="none" className="text-slate-800" />
+                <circle 
+                  cx="96" cy="96" r="88" 
+                  stroke="currentColor" 
+                  strokeWidth="8" 
+                  fill="none" 
+                  strokeDasharray="552.92" 
+                  strokeDashoffset={552.92 - (552.92 * stats.overall_health_score) / 100}
+                  className={`${verdict.color} transition-all duration-1000 ease-out`} 
                 />
-              </motion.div>
-            )}
+              </svg>
+              <span className={`text-6xl font-bold tracking-tighter ${verdict.color}`}>{stats.overall_health_score}</span>
+              <span className="text-xs font-medium tracking-widest text-slate-500 uppercase mt-1">Health</span>
+            </div>
 
-            {/* Radar Chart */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="bg-slate-900/50 border border-slate-800 p-6 rounded-xl flex flex-col items-center justify-center backdrop-blur-sm"
-            >
-              <h3 className="text-slate-400 text-sm font-medium uppercase tracking-wider mb-2">Technical Balance</h3>
-              <div className="h-64 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
-                    <PolarGrid stroke="#334155" />
-                    <PolarAngleAxis dataKey="subject" tick={{ fill: '#94a3b8', fontSize: 10 }} />
-                    <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-                    <Radar
-                      name="Project"
-                      dataKey="A"
-                      stroke={COLORS.cyan}
-                      strokeWidth={2}
-                      fill={COLORS.cyan}
-                      fillOpacity={0.2}
-                    />
-                    <Tooltip
-                      contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', color: '#f1f5f9' }}
-                      itemStyle={{ color: COLORS.cyan }}
-                    />
-                  </RadarChart>
-                </ResponsiveContainer>
+            {/* Verdict Info */}
+            <div className="flex-grow space-y-6">
+              <div>
+                <div className="flex items-center gap-3 mb-2">
+                  <verdict.Icon className={`w-8 h-8 ${verdict.color}`} />
+                  <h2 className={`text-4xl font-black tracking-tight ${verdict.color}`}>{verdict.title}</h2>
+                </div>
+                <p className="text-lg text-slate-300 font-medium">{verdict.desc}</p>
               </div>
-            </motion.div>
 
-            {/* Key Metrics Cards */}
-            <div className="grid grid-rows-2 gap-6">
-
-              {/* Risk Level */}
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.2 }}
-                className="bg-slate-900/50 border border-slate-800 p-6 rounded-xl flex items-center justify-between backdrop-blur-sm"
-              >
-                <div>
-                  <h3 className="text-slate-400 text-sm font-medium uppercase tracking-wider mb-1">Risk Level</h3>
-                  <span className={`text-2xl font-bold ${stats.risk_level === 'Critical' ? 'text-red-500' :
-                    stats.risk_level === 'High' ? 'text-orange-500' :
-                      stats.risk_level === 'Medium' ? 'text-yellow-500' : 'text-green-500'
-                    }`}>
-                    {stats.risk_level}
-                  </span>
-                </div>
-                <div className={`p-3 rounded-full bg-slate-800/50 ${stats.risk_level === 'Critical' ? 'text-red-500' :
-                  stats.risk_level === 'High' ? 'text-orange-500' :
-                    stats.risk_level === 'Medium' ? 'text-yellow-500' : 'text-green-500'
-                  }`}>
-                  {stats.risk_level === 'Low' ? <Shield size={24} /> : <AlertTriangle size={24} />}
-                </div>
-              </motion.div>
-
-              {/* Tech Debt Estimate */}
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.3 }}
-                className="bg-slate-900/50 border border-slate-800 p-6 rounded-xl flex items-center justify-between backdrop-blur-sm"
-              >
-                <div>
-                  <h3 className="text-slate-400 text-sm font-medium uppercase tracking-wider mb-1">Tech Debt</h3>
-                  <div className="flex items-baseline gap-2">
-                    <span className="text-2xl font-bold text-white">{stats.tech_debt_estimate_days}</span>
-                    <span className="text-sm text-slate-500">days est.</span>
+              {/* Badges */}
+              <div className="flex flex-wrap gap-4">
+                <div className="flex items-center gap-3 bg-slate-950/50 border border-white/10 rounded-2xl px-5 py-3">
+                  <div className={`p-2 rounded-full ${stats.risk_level === 'Low' ? 'bg-emerald-500/20 text-emerald-400' : stats.risk_level === 'Medium' ? 'bg-yellow-500/20 text-yellow-400' : 'bg-red-500/20 text-red-400'}`}>
+                    {stats.risk_level === 'Low' ? <Shield className="w-5 h-5" /> : <AlertTriangle className="w-5 h-5" />}
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-0.5">Risk Level</p>
+                    <p className="text-lg font-bold text-white leading-none">{stats.risk_level}</p>
                   </div>
                 </div>
-                <div className="p-3 rounded-full bg-slate-800/50 text-violet-500">
-                  <Clock size={24} />
-                </div>
-              </motion.div>
 
+                <div className="flex items-center gap-3 bg-slate-950/50 border border-white/10 rounded-2xl px-5 py-3">
+                  <div className="p-2 rounded-full bg-violet-500/20 text-violet-400">
+                    <Clock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <p className="text-[10px] uppercase tracking-widest text-slate-500 font-bold mb-0.5">Est. Tech Debt</p>
+                    <p className="text-lg font-bold text-white leading-none">{stats.tech_debt_estimate_days} <span className="text-sm font-medium text-slate-400">days</span></p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
-        )}
+        </motion.div>
+      )}
 
-        {/* ---- TL;DR Strip ---- */}
-        {stats?.tldr_strip && Object.keys(stats.tldr_strip).length > 0 && (
-          <TldrStrip data={stats.tldr_strip} />
-        )}
+      {/* 2. STRATEGIC INSIGHTS (BENTO ROW) */}
+      {Object.keys(filteredTldr).length > 0 && (
+        <TldrStrip data={filteredTldr} />
+      )}
 
-        {/* ---- Executive Report Markdown Content ---- */}
-        {summary && summary !== "*No executive summary available.*" && (
-          <div className="bg-slate-900/30 border border-slate-800/50 rounded-xl p-8 backdrop-blur-sm">
-            <div className="prose prose-invert max-w-none prose-headings:text-cyan-400 prose-a:text-violet-400 print:prose-p:text-slate-800 print:text-slate-800 text-slate-300 leading-relaxed">
+      {/* 3. BLUEPRINT & BALANCE SPLIT */}
+      {stats && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Architecture Diagram (Left 2/3) */}
+          {stats.architecture_diagram && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="lg:col-span-2 bg-slate-900/40 border border-slate-800 rounded-3xl p-1 overflow-hidden backdrop-blur-md shadow-xl"
+            >
+              <div className="bg-slate-950/50 rounded-[28px] h-full flex flex-col overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-800/50 flex items-center justify-between bg-slate-900/50">
+                  <h3 className="text-slate-300 font-semibold tracking-wide text-sm">System Blueprint</h3>
+                  <div className="flex gap-2">
+                    <div className="w-3 h-3 rounded-full bg-red-500/30 border border-red-500/50" />
+                    <div className="w-3 h-3 rounded-full bg-yellow-500/30 border border-yellow-500/50" />
+                    <div className="w-3 h-3 rounded-full bg-green-500/30 border border-green-500/50" />
+                  </div>
+                </div>
+                <div className="flex-grow p-4 min-h-[300px]">
+                  <ArchitectureDiagram
+                    chart={stats.architecture_diagram}
+                    className="h-full border-0 bg-transparent rounded-xl"
+                  />
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Technical Balance (Right 1/3) */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className={`bg-slate-900/40 border border-slate-800 rounded-3xl p-8 backdrop-blur-md flex flex-col items-center justify-center shadow-xl ${!stats.architecture_diagram ? 'lg:col-span-3' : 'lg:col-span-1'}`}
+          >
+            <h3 className="text-slate-400 text-xs font-bold uppercase tracking-widest mb-6">Technical Balance</h3>
+            <div className="w-full h-[280px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <RadarChart cx="50%" cy="50%" outerRadius="65%" data={radarData}>
+                  <PolarGrid stroke="#334155" />
+                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 500 }} />
+                  <Radar
+                    name="Project"
+                    dataKey="A"
+                    stroke={COLORS.cyan}
+                    strokeWidth={2}
+                    fill={COLORS.cyan}
+                    fillOpacity={0.25}
+                  />
+                </RadarChart>
+              </ResponsiveContainer>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* 4. NARRATIVE SUMMARY */}
+      {summary && summary !== "*No executive summary available.*" && (
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+        >
+          <h3 className="text-slate-400 text-sm font-bold uppercase tracking-widest mb-6 px-2">Executive Briefing</h3>
+          <div className="bg-slate-900/30 border border-slate-800/60 rounded-3xl p-8 md:p-12 backdrop-blur-md shadow-2xl">
+            <div className="report-prose max-w-none text-lg">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                 {summary}
               </ReactMarkdown>
             </div>
           </div>
-        )}
+        </motion.div>
+      )}
 
-        {/* ---- Architecture Diagram (dedicated bottom section for PDF capture) ---- */}
-        {stats?.architecture_diagram && (
-          <div className="pdf-arch-section">
-            <h2 className="text-lg font-semibold text-cyan-400 mb-4">System Architecture Map</h2>
-            <div className="rounded-xl border border-slate-800 bg-slate-900/50 overflow-hidden">
-              <ArchitectureDiagram
-                chart={stats.architecture_diagram}
-                title="System Architecture"
-                className="border-0 bg-transparent"
-              />
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ===== Print / PDF Styles ===== */}
-      <style dangerouslySetInnerHTML={{
-        __html: `
-        @media print {
-          @page { margin: 20mm; size: A4 portrait; }
-          body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          .pdf-container { background: white !important; color: black !important; }
-          .pdf-arch-section { display: block !important; page-break-inside: avoid; break-inside: avoid; }
-          h2 { color: #0891b2 !important; } /* cyan-600 */
-          p, span { color: #1e293b !important; } /* slate-800 */
-          /* Hide the interactive upper dashboard in print to focus on the detailed markdown */
-          .bg-slate-900\\/50 { background-color: #f1f5f9 !important; border: 1px solid #e2e8f0; } /* lighter slate */
-          .text-white { color: #0f172a !important; }
-          
-          /* Recharts SVGs */
-          .recharts-wrapper svg { background-color: transparent !important; }
-          
-          /* Mermaid Diagram SVGs */
-          .mermaid-container svg { background-color: transparent !important; }
-        }
-
-        .pdf-container .pdf-arch-section {
-          display: none;
-        }
-      `}} />
     </div>
   );
 };
 
-export { ExecutiveView, InterleavedSection };
+export { ExecutiveView };

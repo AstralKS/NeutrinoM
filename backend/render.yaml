@@ -43,4 +43,4 @@ services:
         sync: false
       # ── CORS ──
       - key: ALLOWED_ORIGINS
-        value: "https://neutrino-app.vercel.app,https://neutrino.vercel.app"
+        value: "https://neutrino-app.vercel.app,https://neutrino.vercel.app,https://neutrino-m-ymwz.vercel.app"

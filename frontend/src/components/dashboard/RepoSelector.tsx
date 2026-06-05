@@ -230,7 +230,7 @@ export function RepoSelector({ onAnalyze, isLoading }: RepoSelectorProps) {
                                                 <AlertCircle className="w-5 h-5 flex-shrink-0" />
                                                 <p className="text-sm">{reposError}</p>
                                             </div>
-                                        ) : filteredRepos.length === 0 ? (
+                                        ) : (!filteredRepos || filteredRepos.length === 0) ? (
                                             <div className="text-center py-8 text-zinc-500 text-sm">
                                                 {searchQuery
                                                     ? "No repositories match your search."

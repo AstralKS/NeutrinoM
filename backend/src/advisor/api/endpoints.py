@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI):
         env_path = project_root / ".env"
         
         if env_path.exists():
-            load_dotenv(env_path)
+            load_dotenv(env_path, override=True)
             logger.info(f"Loaded environment from {env_path}")
             env_loaded = True
         
@@ -53,7 +53,7 @@ async def lifespan(app: FastAPI):
         if not env_loaded:
             cwd_env = Path.cwd() / ".env"
             if cwd_env.exists():
-                load_dotenv(cwd_env)
+                load_dotenv(cwd_env, override=True)
                 logger.info(f"Loaded environment from {cwd_env}")
                 env_loaded = True
 

@@ -55,9 +55,9 @@ export function HistorySidebar({ onSelect, refreshTrigger, isOpen, onToggle }: H
 
     const sidebarWidth = isOpen ? 320 : 64; // w-80 (320px) vs collapsed base (64px)
 
-    if (isLoading && history.length === 0) {
+    if (isLoading && (!history || history.length === 0)) {
         return (
-            <motion.div 
+            <motion.div
                 initial={false}
                 animate={{ width: sidebarWidth }}
                 className="h-full flex flex-col border-r border-white/5 bg-black/20 flex-shrink-0 overflow-hidden"
@@ -74,9 +74,9 @@ export function HistorySidebar({ onSelect, refreshTrigger, isOpen, onToggle }: H
         );
     }
 
-    if (error && history.length === 0) {
+    if (error && (!history || history.length === 0)) {
         return (
-            <motion.div 
+            <motion.div
                 initial={false}
                 animate={{ width: sidebarWidth }}
                 className="h-full flex flex-col border-r border-white/5 bg-black/20 flex-shrink-0 overflow-hidden"
@@ -101,7 +101,7 @@ export function HistorySidebar({ onSelect, refreshTrigger, isOpen, onToggle }: H
     }
 
     return (
-        <motion.div 
+        <motion.div
             initial={false}
             animate={{ width: sidebarWidth }}
             className="h-full border-r border-white/5 bg-black/20 flex flex-col flex-shrink-0 overflow-hidden whitespace-nowrap"
@@ -113,8 +113,8 @@ export function HistorySidebar({ onSelect, refreshTrigger, isOpen, onToggle }: H
                         <h3 className="font-medium text-zinc-200">Recent Analyses</h3>
                     </div>
                 )}
-                <button 
-                    onClick={onToggle} 
+                <button
+                    onClick={onToggle}
                     className="p-1.5 hover:bg-white/10 rounded-md transition-colors text-zinc-400"
                     title={isOpen ? "Collapse Sidebar" : "Expand Sidebar"}
                 >
@@ -123,7 +123,7 @@ export function HistorySidebar({ onSelect, refreshTrigger, isOpen, onToggle }: H
             </div>
 
             <div className={`flex-1 overflow-y-auto w-full scrollbar-thin ${isOpen ? 'p-3 space-y-2' : 'p-2 space-y-3'}`}>
-                {history.length === 0 ? (
+                {!history || history.length === 0 ? (
                     isOpen ? (
                         <div className="text-center py-8 px-4">
                             <p className="text-zinc-500 text-sm">No analysis history yet.</p>

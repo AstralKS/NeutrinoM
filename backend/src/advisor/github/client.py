@@ -38,7 +38,8 @@ class GitHubClient:
             access_token: GitHub personal access token for private repos.
                          Used only for this request, never stored.
         """
-        self._access_token = access_token or os.getenv("GITHUB_TOKEN")
+        # Prioritize the backend .env token if available, fallback to frontend token
+        self._access_token = os.getenv("GITHUB_TOKEN") or access_token
 
     def _get_headers(self) -> dict[str, str]:
         """Build request headers with optional auth."""
@@ -47,7 +48,14 @@ class GitHubClient:
             "User-Agent": "AI-Development-Advisor",
         }
         if self._access_token:
+            # Debug: print first few characters to see which token is used
+            prefix = self._access_token[:10] if len(self._access_token) > 10 else "***"
+            logger.info(f"Using GitHub token starting with {prefix}...")
+            print(f"DEBUG: Using GitHub token starting with {prefix}...")
             headers["Authorization"] = f"Bearer {self._access_token}"
+        else:
+            logger.info("No GitHub token provided, using unauthenticated request.")
+            print("DEBUG: No GitHub token provided, using unauthenticated request.")
         return headers
 
     @staticmethod
