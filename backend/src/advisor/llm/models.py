@@ -33,8 +33,8 @@ class ModelInfo(BaseModel):
 # classifier that only returns "User Safety: safe", not a code analysis model.
 AVAILABLE_MODELS: list[ModelInfo] = [
     ModelInfo(
-        id="google/gemini-2.0-flash-lite-preview-02-05:free",
-        name="Gemini 2.0 Flash Lite",
+        id="google/gemini-2.0-flash-thinking-exp:free",
+        name="Gemini 2.0 Flash Thinking",
         context_length=1000000,
         capabilities=[
             ModelCapability.ANALYSIS,
@@ -45,9 +45,9 @@ AVAILABLE_MODELS: list[ModelInfo] = [
         priority=0,
     ),
     ModelInfo(
-        id="google/gemini-2.0-pro-exp-02-05:free",
-        name="Gemini 2.0 Pro",
-        context_length=2000000,
+        id="meta-llama/llama-3.3-70b-instruct:free",
+        name="Llama 3.3 70B",
+        context_length=131000,
         capabilities=[
             ModelCapability.ANALYSIS,
             ModelCapability.CODING,
@@ -57,9 +57,9 @@ AVAILABLE_MODELS: list[ModelInfo] = [
         priority=1,
     ),
     ModelInfo(
-        id="moonshotai/kimi-k2:free",
-        name="Moonshot Kimi K2",
-        context_length=128000,
+        id="mistralai/mistral-small-24b-instruct-2501:free",
+        name="Mistral Small 24B",
+        context_length=32000,
         capabilities=[
             ModelCapability.ANALYSIS,
             ModelCapability.CODING,
@@ -69,9 +69,9 @@ AVAILABLE_MODELS: list[ModelInfo] = [
         priority=2,
     ),
     ModelInfo(
-        id="tngtech/deepseek-r1t2-chimera:free",
-        name="DeepSeek R1T2 Chimera",
-        context_length=128000,
+        id="qwen/qwen-2.5-coder-32b-instruct:free",
+        name="Qwen 2.5 Coder",
+        context_length=32000,
         capabilities=[
             ModelCapability.ANALYSIS,
             ModelCapability.REASONING,
@@ -80,35 +80,14 @@ AVAILABLE_MODELS: list[ModelInfo] = [
         priority=3,
     ),
     ModelInfo(
-        id="openrouter/pony-alpha:free",
-        name="Pony Alpha 200K",
-        context_length=200000,
-        capabilities=[
-            ModelCapability.ANALYSIS,
-            ModelCapability.CODING,
-            ModelCapability.REASONING,
-        ],
-        priority=4,
-    ),
-    ModelInfo(
-        id="arcee-ai/trinity-large-preview:free",
-        name="Arcee Trinity Large",
-        context_length=130000,
-        capabilities=[
-            ModelCapability.ANALYSIS,
-            ModelCapability.CODING,
-        ],
-        priority=5,
-    ),
-    ModelInfo(
-        id="z-ai/glm-4.5-air:free",
-        name="GLM 4.5 Air",
-        context_length=128000,
+        id="google/gemma-2-9b-it:free",
+        name="Gemma 2 9B",
+        context_length=8000,
         capabilities=[
             ModelCapability.ANALYSIS,
             ModelCapability.SUMMARIZATION,
         ],
-        priority=6,
+        priority=4,
     ),
 ]
 
