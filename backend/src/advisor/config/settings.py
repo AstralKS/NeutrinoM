@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file="../.env",
+        env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",
@@ -35,6 +35,10 @@ class Settings(BaseSettings):
     supabase_service_role_key: str = Field(
         ...,
         description="Supabase service role key (backend only)",
+    )
+    supabase_jwt_secret: str = Field(
+        ...,
+        description="Supabase JWT secret for token verification",
     )
 
     # OpenRouter API Keys (multiple for rotation/fallback)

@@ -110,9 +110,26 @@ class OpenRouterClient:
             m for m in AvailableModels.get_fallback_order() if m != model_id
         ]
 
-        last_error: Exception | None = None
+        # Estimate tokens for context-length guard
+        prompt_chars = len(prompt) + len(system_prompt or "")
+        estimated_tokens = (prompt_chars // 4) + max_tokens
+
+        errors = []
 
         for model in models_to_try:
+            # Context-length guard: skip models that can't fit this prompt
+            model_info = AvailableModels.get_by_id(model)
+            if model_info and model_info.context_length < estimated_tokens:
+                logger.info(
+                    f"Skipping {model_info.name} — context {model_info.context_length:,} "
+                    f"< estimated {estimated_tokens:,} tokens needed"
+                )
+                errors.append(
+                    f"{model}: Skipped — context window too small "
+                    f"({model_info.context_length:,} < {estimated_tokens:,})"
+                )
+                continue
+
             # Reset key rotation for each model attempt
             self._reset_key_rotation()
 
@@ -137,7 +154,7 @@ class OpenRouterClient:
                     }
 
                 except OpenRouterError as e:
-                    last_error = e
+                    errors.append(f"{model}: {e}")
                     if e.status_code == 429 or e.status_code == 401:
                         # Rate limit or auth error - try next key
                         if not self._rotate_key():
@@ -146,12 +163,13 @@ class OpenRouterClient:
                         break  # Other error, try next model
 
                 except Exception as e:
-                    last_error = e
+                    errors.append(f"{model}: {e}")
                     logger.warning(f"Error with model {model}: {e}")
                     break
 
+        error_details = "\n".join(errors)
         raise OpenRouterError(
-            f"All models and keys exhausted. Last error: {last_error}"
+            f"All models and keys exhausted. Errors:\n{error_details}"
         )
 
     async def _make_request(
@@ -221,14 +239,26 @@ class OpenRouterClient:
 
     def _parse_json_response(self, content: str) -> Any:
         """Parse JSON from LLM response, handling markdown code blocks."""
-        # Strip markdown code blocks if present
+        import re
+        
         content = content.strip()
-        if content.startswith("```"):
+        # Extract content inside markdown code blocks if present
+        match = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", content)
+        if match:
+            content = match.group(1).strip()
+        elif content.startswith("```"):
+            # Fallback if closing ticks are missing
             lines = content.split("\n")
-            # Remove first and last lines (code block markers)
-            content = "\n".join(lines[1:-1])
+            content = "\n".join(lines[1:]).strip()
 
-        return json.loads(content)
+        # Fix trailing commas (common LLM mistake that causes "Expecting property name" error)
+        content = re.sub(r',\s*([\]}])', r'\1', content)
+
+        try:
+            return json.loads(content)
+        except json.JSONDecodeError as e:
+            logger.error(f"Failed to parse JSON: {e}\nContent snippet: {content[:1000]}")
+            raise
 
     @property
     def total_tokens_used(self) -> int:

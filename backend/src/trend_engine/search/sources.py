@@ -2,18 +2,18 @@
 
 Each source returns a list of SearchResult objects.
 All sources are fetched in parallel via asyncio.gather.
-
-Optimized: batched concurrency with short stagger instead of sequential 1.1s delays.
+Uses shared httpx.AsyncClient with connection pooling for performance.
 """
 
 import asyncio
 import logging
+import os
 from typing import Any
 
 import httpx
 
-from advisor.config import get_settings
-from advisor.trends.models import SearchResult, SourceType
+from trend_engine.config import get_settings
+from trend_engine.models import SearchResult, SourceType
 
 logger = logging.getLogger(__name__)
 
@@ -22,8 +22,8 @@ GITHUB_API_URL = "https://api.github.com"
 HN_ALGOLIA_URL = "https://hn.algolia.com/api/v1"
 
 # Concurrency controls
-BATCH_CONCURRENCY = 3   # Max concurrent requests per source
-BATCH_STAGGER = 0.3     # Seconds between batches
+_MAX_CONCURRENT = 3
+_STAGGER_SECS = 0.15  # Reduced from 0.3 — pool handles back-pressure
 
 
 async def search_all(
@@ -31,7 +31,8 @@ async def search_all(
     github_queries: list[str],
     hn_queries: list[str],
     *,
-    timeout: float = 30.0,
+    timeout: float = 25.0,
+    client: httpx.AsyncClient | None = None,
 ) -> list[SearchResult]:
     """Run all source searches in parallel and merge results.
 
@@ -40,20 +41,28 @@ async def search_all(
         github_queries: Search terms for GitHub API.
         hn_queries: Search terms for HN Algolia.
         timeout: HTTP request timeout in seconds.
+        client: Optional shared httpx.AsyncClient (recommended).
 
     Returns:
         Merged list of SearchResult from all sources.
     """
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        tasks = [
+    own_client = client is None
+    if own_client:
+        client = httpx.AsyncClient(
+            timeout=timeout,
+            limits=httpx.Limits(max_connections=20, max_keepalive_connections=5),
+        )
+
+    try:
+        results = await asyncio.gather(
             _search_serper_batch(client, serper_queries),
             _search_github_batch(client, github_queries),
             _search_hn_batch(client, hn_queries),
-        ]
-        results = await asyncio.gather(
-            *tasks,
             return_exceptions=True,
         )
+    finally:
+        if own_client:
+            await client.aclose()
 
     all_results: list[SearchResult] = []
     for result in results:
@@ -62,104 +71,90 @@ async def search_all(
             continue
         all_results.extend(result)
 
-    logger.info(f"SearchSources: Collected {len(all_results)} results")
+    logger.info(f"SearchSources: collected {len(all_results)} results")
     return all_results
 
 
-# --- Serper (Google Search) ---
+# ── Serper (Google Search) ─────────────────────────────────────────
 
 
 async def _search_serper_batch(
     client: httpx.AsyncClient,
     queries: list[str],
 ) -> list[SearchResult]:
-    """Run Serper queries with batched concurrency (3 at a time, 0.3s stagger)."""
+    """Run Serper queries with batched concurrency."""
     settings = get_settings()
-    if not settings.serper_api_key:
+    api_key = settings.serper_api_key if hasattr(settings, "serper_api_key") else ""
+    if not api_key:
         logger.warning("SERPER_API_KEY not set, skipping web search")
         return []
 
-    queries = queries[:10]  # Hard cap
-    sem = asyncio.Semaphore(BATCH_CONCURRENCY)
+    queries = queries[:10]
+    sem = asyncio.Semaphore(_MAX_CONCURRENT)
 
-    async def _with_sem(q: str) -> list[SearchResult]:
+    async def _one(q: str) -> list[SearchResult]:
         async with sem:
-            result = await _search_serper_single(client, q, settings.serper_api_key)
-            await asyncio.sleep(BATCH_STAGGER)
-            return result
+            res = await _search_serper_single(client, q, api_key)
+            await asyncio.sleep(_STAGGER_SECS)
+            return res
 
     nested = await asyncio.gather(
-        *[_with_sem(q) for q in queries],
-        return_exceptions=True,
+        *[_one(q) for q in queries], return_exceptions=True
     )
-
-    results: list[SearchResult] = []
+    out: list[SearchResult] = []
     for batch in nested:
         if isinstance(batch, Exception):
             logger.warning(f"Serper query failed: {batch}")
-            continue
-        results.extend(batch)
-    return results
+        else:
+            out.extend(batch)
+    return out
 
 
 async def _search_serper_single(
-    client: httpx.AsyncClient,
-    query: str,
-    api_key: str,
+    client: httpx.AsyncClient, query: str, api_key: str
 ) -> list[SearchResult]:
-    """Execute a single Serper search query."""
     try:
         resp = await client.post(
             SERPER_API_URL,
-            headers={
-                "X-API-KEY": api_key,
-                "Content-Type": "application/json",
-            },
+            headers={"X-API-KEY": api_key, "Content-Type": "application/json"},
             json={"q": query, "num": 5},
         )
         resp.raise_for_status()
         data = resp.json()
-
-        results: list[SearchResult] = []
-        for item in data.get("organic", [])[:5]:
-            results.append(
-                SearchResult(
-                    title=item.get("title", ""),
-                    snippet=item.get("snippet", ""),
-                    url=item.get("link", ""),
-                    source=SourceType.SERPER,
-                    score=item.get("position", 0),
-                    raw_data=item,
-                )
+        return [
+            SearchResult(
+                title=item.get("title", ""),
+                snippet=item.get("snippet", ""),
+                url=item.get("link", ""),
+                source=SourceType.SERPER,
+                score=item.get("position", 0),
+                raw_data=item,
             )
-        return results
+            for item in data.get("organic", [])[:5]
+        ]
     except Exception as e:
         logger.error(f"Serper search failed for '{query}': {e}")
         return []
 
 
-# --- GitHub (Repos) ---
+# ── GitHub (Repos) ─────────────────────────────────────────────────
 
 
 async def _search_github_batch(
-    client: httpx.AsyncClient,
-    queries: list[str],
+    client: httpx.AsyncClient, queries: list[str]
 ) -> list[SearchResult]:
-    """Run GitHub repo searches with batched concurrency."""
-    queries = queries[:5]  # Hard cap
-    sem = asyncio.Semaphore(BATCH_CONCURRENCY)
+    queries = queries[:5]
+    sem = asyncio.Semaphore(_MAX_CONCURRENT)
 
-    async def _with_sem(q: str) -> list[SearchResult]:
+    async def _one(q: str) -> list[SearchResult]:
         async with sem:
-            result = await _search_github_repos(client, q)
-            await asyncio.sleep(BATCH_STAGGER)
-            return result
+            res = await _search_github_repos(client, q)
+            await asyncio.sleep(_STAGGER_SECS)
+            return res
 
     nested = await asyncio.gather(
-        *[_with_sem(q) for q in queries],
-        return_exceptions=True,
+        *[_one(q) for q in queries], return_exceptions=True
     )
-
     results: list[SearchResult] = []
     seen_urls: set[str] = set()
     for batch in nested:
@@ -174,11 +169,8 @@ async def _search_github_batch(
 
 
 async def _search_github_repos(
-    client: httpx.AsyncClient,
-    query: str,
+    client: httpx.AsyncClient, query: str
 ) -> list[SearchResult]:
-    """Search GitHub repositories."""
-    import os
     try:
         headers: dict[str, str] = {"Accept": "application/vnd.github.v3+json"}
         github_token = os.getenv("GITHUB_TOKEN")
@@ -187,28 +179,17 @@ async def _search_github_repos(
 
         resp = await client.get(
             f"{GITHUB_API_URL}/search/repositories",
-            params={
-                "q": query,
-                "sort": "stars",
-                "order": "desc",
-                "per_page": 5,
-            },
+            params={"q": query, "sort": "stars", "order": "desc", "per_page": 5},
             headers=headers,
         )
         resp.raise_for_status()
-        items = resp.json().get("items", [])
-
-        results: list[SearchResult] = []
-        for repo in items[:5]:
-            results.append(_repo_to_result(repo))
-        return results
+        return [_repo_to_result(r) for r in resp.json().get("items", [])[:5]]
     except Exception as e:
         logger.error(f"GitHub search failed for '{query}': {e}")
         return []
 
 
 def _repo_to_result(repo: dict[str, Any]) -> SearchResult:
-    """Convert GitHub repo JSON to SearchResult."""
     return SearchResult(
         title=repo.get("full_name", ""),
         snippet=repo.get("description", "") or "",
@@ -225,17 +206,16 @@ def _repo_to_result(repo: dict[str, Any]) -> SearchResult:
     )
 
 
-# --- Hacker News (Algolia) ---
+# ── Hacker News (Algolia) ─────────────────────────────────────────
 
 
 async def _search_hn_batch(
-    client: httpx.AsyncClient,
-    queries: list[str],
+    client: httpx.AsyncClient, queries: list[str]
 ) -> list[SearchResult]:
-    """Run HN Algolia searches in parallel."""
-    tasks = [_search_hn_single(client, q) for q in queries]
-    nested = await asyncio.gather(*tasks, return_exceptions=True)
-
+    nested = await asyncio.gather(
+        *[_search_hn_single(client, q) for q in queries],
+        return_exceptions=True,
+    )
     results: list[SearchResult] = []
     seen_ids: set[str] = set()
     for batch in nested:
@@ -253,44 +233,34 @@ async def _search_hn_batch(
 
 
 async def _search_hn_single(
-    client: httpx.AsyncClient,
-    query: str,
+    client: httpx.AsyncClient, query: str
 ) -> list[SearchResult]:
-    """Search HN via Algolia API."""
     try:
         resp = await client.get(
             f"{HN_ALGOLIA_URL}/search",
-            params={
-                "query": query,
-                "tags": "story",
-                "hitsPerPage": 10,
-            },
+            params={"query": query, "tags": "story", "hitsPerPage": 10},
         )
         resp.raise_for_status()
         hits = resp.json().get("hits", [])
-
-        results: list[SearchResult] = []
-        for hit in hits[:5]:
-            hn_url = (
-                hit.get("url", "")
-                or f"https://news.ycombinator.com/item?id={hit.get('objectID', '')}"
+        return [
+            SearchResult(
+                title=hit.get("title", ""),
+                snippet="",
+                url=(
+                    hit.get("url", "")
+                    or f"https://news.ycombinator.com/item?id={hit.get('objectID', '')}"
+                ),
+                source=SourceType.HACKER_NEWS,
+                score=hit.get("points", 0) or 0,
+                published_at=hit.get("created_at", "")[:10],
+                raw_data={
+                    "objectID": hit.get("objectID", ""),
+                    "num_comments": hit.get("num_comments", 0),
+                    "author": hit.get("author", ""),
+                },
             )
-            results.append(
-                SearchResult(
-                    title=hit.get("title", ""),
-                    snippet="",
-                    url=hn_url,
-                    source=SourceType.HACKER_NEWS,
-                    score=hit.get("points", 0) or 0,
-                    published_at=(hit.get("created_at", "")[:10]),
-                    raw_data={
-                        "objectID": hit.get("objectID", ""),
-                        "num_comments": hit.get("num_comments", 0),
-                        "author": hit.get("author", ""),
-                    },
-                )
-            )
-        return results
+            for hit in hits[:5]
+        ]
     except Exception as e:
         logger.error(f"HN search failed for '{query}': {e}")
         return []

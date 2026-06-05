@@ -8,6 +8,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { ReportService } from "../../services/api";
 import { downloadBlob } from "../../lib/reportDownload";
+import { ExecutiveView } from "./ExecutiveView";
+import { ArchitectureDiagram } from "./ArchitectureDiagram";
 
 function timestampForFilename(): string {
   const now = new Date();
@@ -80,7 +82,7 @@ export function AnalysisView({ result }: AnalysisViewProps) {
           <span className="text-zinc-400 text-sm">{result.repo_url}</span>
         </div>
         <div className="flex items-center gap-2 text-zinc-500 text-sm">
-            <span>Model: {result.model_used || "Unknown"}</span>
+          <span>Model: {result.model_used || "Unknown"}</span>
         </div>
       </GlassCard>
 
@@ -91,17 +93,16 @@ export function AnalysisView({ result }: AnalysisViewProps) {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${
-                activeTab === tab.id
-                  ? "bg-indigo-600/10 text-indigo-400 border border-indigo-500/20"
-                  : "text-zinc-400 hover:bg-white/5 hover:text-white border border-transparent"
-              }`}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all ${activeTab === tab.id
+                ? "bg-indigo-600/10 text-indigo-400 border border-indigo-500/20"
+                : "text-zinc-400 hover:bg-white/5 hover:text-white border border-transparent"
+                }`}
             >
               <tab.icon className="w-5 h-5" />
               <span className="font-medium">{tab.label}</span>
             </button>
           ))}
-          
+
           <div className="pt-4 mt-4 border-t border-white/5 space-y-2">
             {downloadError && (
               <p className="text-sm text-red-400 px-1">{downloadError}</p>
@@ -152,6 +153,15 @@ export function AnalysisView({ result }: AnalysisViewProps) {
                     <h2 className="text-2xl font-clash font-bold mb-8 text-white">
                       Technical Architecture
                     </h2>
+
+                    {result.executive_stats?.architecture_diagram && (
+                      <div className="mb-10">
+                        <ArchitectureDiagram
+                          chart={result.executive_stats.architecture_diagram}
+                        />
+                      </div>
+                    )}
+
                     <ReportMarkdown>
                       {result.technical_summary ||
                         "*No technical summary available.*"}
@@ -163,10 +173,10 @@ export function AnalysisView({ result }: AnalysisViewProps) {
                     <h2 className="text-2xl font-clash font-bold mb-8 text-white">
                       Executive Summary
                     </h2>
-                    <ReportMarkdown>
-                      {result.executive_summary ||
-                        "*No executive summary available.*"}
-                    </ReportMarkdown>
+                    <ExecutiveView
+                      summary={result.executive_summary || "*No executive summary available.*"}
+                      stats={result.executive_stats}
+                    />
                   </div>
                 )}
                 {activeTab === "timeline" && (
@@ -184,11 +194,10 @@ export function AnalysisView({ result }: AnalysisViewProps) {
                             >
                               <div className="flex items-center gap-3">
                                 <div
-                                  className={`w-2.5 h-2.5 rounded-full ${
-                                    phase.status === "completed"
-                                      ? "bg-green-500"
-                                      : "bg-red-500"
-                                  }`}
+                                  className={`w-2.5 h-2.5 rounded-full ${phase.status === "completed"
+                                    ? "bg-green-500"
+                                    : "bg-red-500"
+                                    }`}
                                 />
                                 <span className="capitalize font-medium text-white">
                                   {name.replace(/_/g, " ")}

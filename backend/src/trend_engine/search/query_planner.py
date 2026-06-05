@@ -1,6 +1,6 @@
 """Query planner — generates focused sub-queries per tech tag.
 
-Turns a single tag like "Django" into 3 targeted search queries:
+Turns a single tag like "Django" into targeted search queries:
 - Release/version queries
 - Performance/benchmark queries
 - Roadmap/feature queries
@@ -12,17 +12,16 @@ Tuned for speed: 3 Serper + 1 GitHub + 1 HN = 5 queries/tag.
 import logging
 from datetime import UTC, datetime
 
-from advisor.trends.models import SearchQuery, SearchQueryType
+from trend_engine.models import SearchQuery, SearchQueryType
 
 logger = logging.getLogger(__name__)
 
 
-def get_current_year() -> int:
-    """Return the current year for query construction."""
+def _current_year() -> int:
     return datetime.now(UTC).year
 
 
-# Reduced templates: keep only the highest-signal query per type.
+# One high-signal query per type.
 QUERY_TEMPLATES: dict[SearchQueryType, list[str]] = {
     SearchQueryType.RELEASE: [
         "{tag} latest stable release {year}",
@@ -51,7 +50,7 @@ def plan_queries(
         List of SearchQuery objects, typically 3 per tag.
     """
     tag = tag.lower().strip()
-    year = get_current_year()
+    year = _current_year()
     queries: list[SearchQuery] = []
 
     for query_type, templates in QUERY_TEMPLATES.items():
@@ -66,31 +65,15 @@ def plan_queries(
             )
 
     queries = queries[:max_queries]
-    logger.info(f"QueryPlanner: Generated {len(queries)} queries for '{tag}'")
+    logger.info(f"QueryPlanner: {len(queries)} queries for '{tag}'")
     return queries
 
 
 def plan_github_queries(tag: str) -> list[str]:
-    """Generate GitHub-specific search terms for a tag.
-
-    Args:
-        tag: Technology name.
-
-    Returns:
-        Single-item list for GitHub API search.
-    """
-    tag = tag.lower().strip()
-    return [f"{tag} in:name,description,topics"]
+    """Generate GitHub-specific search terms for a tag."""
+    return [f"{tag.lower().strip()} in:name,description,topics"]
 
 
 def plan_hn_queries(tag: str) -> list[str]:
-    """Generate Hacker News search terms for a tag.
-
-    Args:
-        tag: Technology name.
-
-    Returns:
-        Single-item list for HN Algolia API.
-    """
-    tag = tag.lower().strip()
-    return [tag]
+    """Generate HN search terms for a tag."""
+    return [tag.lower().strip()]

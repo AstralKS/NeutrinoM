@@ -16,7 +16,7 @@ import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
-
+from advisor.database.models import ExecutiveStats
 from advisor.analysis.core.chunk_prompts import (
     build_backend_prompt,
     build_combined_frontend_infra_prompt,
@@ -78,6 +78,7 @@ class DeepReviewResult:
     infra_analysis: ChunkAnalysis | None
     aggregated_technical: str
     aggregated_executive: str
+    executive_stats: ExecutiveStats | None
     model_used: str
     trend_context: str = ""
 
@@ -178,7 +179,7 @@ class DeepReviewOrchestrator:
 
         # Step 4: Aggregate into final reports (parallel)
         trend_ctx = self._trend_context or ""
-        technical, executive, model = await self._aggregate_reports(
+        technical, executive, stats, model = await self._aggregate_reports(
             repo_name, frontend_result, backend_result, infra_result,
             trend_context=trend_ctx,
         )
@@ -192,6 +193,7 @@ class DeepReviewOrchestrator:
             compression_stats=stats, frontend_analysis=frontend_result,
             backend_analysis=backend_result, infra_analysis=infra_result,
             aggregated_technical=technical, aggregated_executive=executive,
+            executive_stats=stats,
             model_used=model, trend_context=trend_ctx,
         )
 
@@ -301,7 +303,7 @@ class DeepReviewOrchestrator:
         self, repo_name: str,
         frontend: ChunkAnalysis, backend: ChunkAnalysis,
         infra: ChunkAnalysis, trend_context: str = "",
-    ) -> tuple[str, str, str]:
+    ) -> tuple[str, str, ExecutiveStats | None, str]:
         """Delegate report generation to the Report Agent.
 
         The agent queries RAG for historical context, enriches findings,

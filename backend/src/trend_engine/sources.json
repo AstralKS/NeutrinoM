@@ -1,0 +1,72 @@
+[
+  {
+    "name": "Hacker News – AI/ML",
+    "url": "https://hnrss.org/newest?q=AI+machine+learning",
+    "source_type": "rss",
+    "source_weight": 0.7,
+    "enabled": true
+  },
+  {
+    "name": "Hacker News – Infrastructure",
+    "url": "https://hnrss.org/newest?q=infrastructure+devops+kubernetes",
+    "source_type": "rss",
+    "source_weight": 0.7,
+    "enabled": true
+  },
+  {
+    "name": "TechCrunch – Startups",
+    "url": "https://techcrunch.com/feed/",
+    "source_type": "rss",
+    "source_weight": 0.6,
+    "enabled": true
+  },
+  {
+    "name": "The New Stack",
+    "url": "https://thenewstack.io/feed/",
+    "source_type": "rss",
+    "source_weight": 0.8,
+    "enabled": true
+  },
+  {
+    "name": "InfoQ – Architecture",
+    "url": "https://feed.infoq.com/",
+    "source_type": "rss",
+    "source_weight": 0.85,
+    "enabled": true
+  },
+  {
+    "name": "GitHub Blog – Engineering",
+    "url": "https://github.blog/feed/",
+    "source_type": "release_notes",
+    "source_weight": 0.9,
+    "enabled": true
+  },
+  {
+    "name": "Vercel Blog",
+    "url": "https://vercel.com/atom",
+    "source_type": "release_notes",
+    "source_weight": 0.8,
+    "enabled": true
+  },
+  {
+    "name": "Google AI Blog",
+    "url": "https://blog.google/technology/ai/rss/",
+    "source_type": "research",
+    "source_weight": 0.95,
+    "enabled": true
+  },
+  {
+    "name": "arXiv – cs.AI",
+    "url": "https://rss.arxiv.org/rss/cs.AI",
+    "source_type": "research",
+    "source_weight": 0.9,
+    "enabled": true
+  },
+  {
+    "name": "Anthropic Research",
+    "url": "https://www.anthropic.com/feed.xml",
+    "source_type": "research",
+    "source_weight": 0.95,
+    "enabled": true
+  }
+]

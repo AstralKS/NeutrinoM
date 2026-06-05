@@ -3,20 +3,38 @@ import { Link } from "react-router-dom";
 import { motion, useScroll, useMotionValueEvent } from "framer-motion";
 import { Button } from "../ui/Button";
 import { NeutrinoLogo } from "../ui/NeutrinoLogo";
-import { Menu, X } from "lucide-react";
+import { Menu, X, LogOut, User } from "lucide-react";
 import { cn } from "../../lib/utils";
+import { useAuth } from "../../contexts/AuthProvider";
+import { useNavigate } from "react-router-dom";
 
 export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [activeTab, setActiveTab] = useState("Features");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { scrollY } = useScroll();
+  const { user, loading, signOut } = useAuth();
+  const navigate = useNavigate();
 
   useMotionValueEvent(scrollY, "change", (latest) => {
     setIsScrolled(latest > 50);
   });
 
   const navLinks = ["Features", "Company", "Blogs"];
+
+  const handleSignOut = async () => {
+    await signOut();
+    navigate("/");
+  };
+
+  // Extract display name or email
+  const displayName =
+    user?.user_metadata?.full_name ||
+    user?.user_metadata?.name ||
+    user?.email?.split("@")[0] ||
+    "User";
+
+  const avatarUrl = user?.user_metadata?.avatar_url;
 
   return (
     <motion.nav
@@ -61,14 +79,39 @@ export function Navbar() {
 
         {/* Right Actions */}
         <div className="hidden md:flex items-center gap-4">
-          <Link to="/login" className="text-sm font-medium text-zinc-300 hover:text-white transition-colors">
-            Sign in
-          </Link>
-          <Link to="/dashboard">
-            <Button variant="primary" size="sm" className="rounded-full px-6">
-              Get Started
-            </Button>
-          </Link>
+          {!loading && user ? (
+            <div className="flex items-center gap-3">
+              <Link
+                to="/dashboard"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 hover:border-white/20 transition-all"
+              >
+                {avatarUrl ? (
+                  <img src={avatarUrl} alt={displayName} className="w-6 h-6 rounded-full" />
+                ) : (
+                  <User className="w-4 h-4 text-zinc-400" />
+                )}
+                <span className="text-sm text-zinc-300 max-w-24 truncate">{displayName}</span>
+              </Link>
+              <button
+                onClick={handleSignOut}
+                className="text-zinc-500 hover:text-white transition-colors p-1.5 rounded-lg hover:bg-white/5"
+                title="Sign out"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+          ) : (
+            <>
+              <Link to="/login" className="text-sm font-medium text-zinc-300 hover:text-white transition-colors">
+                Sign in
+              </Link>
+              <Link to="/dashboard">
+                <Button variant="primary" size="sm" className="rounded-full px-6">
+                  Get Started
+                </Button>
+              </Link>
+            </>
+          )}
         </div>
 
         {/* Mobile Menu Toggle */}
@@ -100,14 +143,39 @@ export function Navbar() {
               </Link>
             ))}
             <div className="h-px bg-white/10 w-full" />
-            <Link to="/login" className="text-lg font-medium text-zinc-300 hover:text-white">
-              Sign in
-            </Link>
-            <Link to="/dashboard" className="w-full block">
-              <Button variant="primary" className="w-full">
-                Get Started
-              </Button>
-            </Link>
+
+            {!loading && user ? (
+              <>
+                <div className="flex items-center gap-3">
+                  {avatarUrl ? (
+                    <img src={avatarUrl} alt={displayName} className="w-8 h-8 rounded-full" />
+                  ) : (
+                    <User className="w-5 h-5 text-zinc-400" />
+                  )}
+                  <span className="text-zinc-300">{displayName}</span>
+                </div>
+                <Link to="/dashboard" className="w-full block" onClick={() => setMobileMenuOpen(false)}>
+                  <Button variant="primary" className="w-full">
+                    Dashboard
+                  </Button>
+                </Link>
+                <button onClick={handleSignOut} className="text-sm text-zinc-500 hover:text-white flex items-center gap-2">
+                  <LogOut className="w-4 h-4" />
+                  Sign out
+                </button>
+              </>
+            ) : (
+              <>
+                <Link to="/login" className="text-lg font-medium text-zinc-300 hover:text-white" onClick={() => setMobileMenuOpen(false)}>
+                  Sign in
+                </Link>
+                <Link to="/dashboard" className="w-full block" onClick={() => setMobileMenuOpen(false)}>
+                  <Button variant="primary" className="w-full">
+                    Get Started
+                  </Button>
+                </Link>
+              </>
+            )}
           </div>
         </motion.div>
       )}

@@ -7,8 +7,9 @@ Run: uv run pytest tests/test_orchestrator.py -v
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
+from advisor.analysis.core.deep_review import DeepReviewResult
 from advisor.analysis.orchestrator import AnalysisOrchestrator
-from advisor.database.models import TechStackInfo
+from advisor.database.models import TechStackInfo, ExecutiveStats
 
 
 class TestAnalysisOrchestrator:
@@ -61,8 +62,8 @@ class TestAnalysisOrchestrator:
                 "advisor.analysis.orchestrator.GitHubClient"
             ) as MockGitHub,
             patch(
-                "advisor.analysis.orchestrator.OpenRouterClient"
-            ) as MockLLM,
+                "advisor.analysis.orchestrator.DeepReviewOrchestrator"
+            ) as MockDeepReview,
         ):
             # Setup mocks
             mock_github = MagicMock()
@@ -80,10 +81,34 @@ class TestAnalysisOrchestrator:
                 return_value=("owner", "repo")
             )
 
-            mock_llm = MagicMock()
-            mock_llm.complete = AsyncMock(return_value=mock_llm_response)
-            mock_llm.total_tokens_used = 100
-            MockLLM.return_value = mock_llm
+            mock_deep_review = MagicMock()
+            mock_deep_review.review = AsyncMock(
+                return_value=DeepReviewResult(
+                    total_files=3,
+                    total_tokens=1000,
+                    compression_stats=None,
+                    frontend_analysis=None,
+                    backend_analysis=None,
+                    infra_analysis=None,
+                    aggregated_technical="Tech Summary",
+                    aggregated_executive="Exec Summary",
+                    executive_stats=ExecutiveStats(
+                        overall_health_score=85,
+                        radar_metrics={
+                            "Security": 90,
+                            "Scalability": 80,
+                            "Maintainability": 85,
+                            "Performance": 88,
+                            "Modernity": 92
+                        },
+                        tech_debt_estimate_days=3,
+                        risk_level="Low"
+                    ),
+                    model_used="test-model",
+                    trend_context=""
+                )
+            )
+            MockDeepReview.return_value = mock_deep_review
 
             # Run analysis
             orchestrator = AnalysisOrchestrator()
@@ -97,6 +122,9 @@ class TestAnalysisOrchestrator:
             assert result.model_used == "test-model"
             assert result.technical_summary is not None
             assert result.executive_summary is not None
+            assert result.executive_stats is not None
+            assert result.executive_stats.overall_health_score == 85
+            assert result.executive_stats.risk_level == "Low"
 
     @pytest.mark.asyncio
     async def test_format_tech_stack(self):

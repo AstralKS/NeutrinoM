@@ -407,7 +407,13 @@ OUTPUT STRUCTURE (follow this order; use these exact section headers so the repo
 
 **Bottom line:** [One sentence: architecture maturity (1-10) and the single most important technical takeaway.]
 
-Then 2-3 short paragraphs covering: what this codebase does and how it works at a high level, critical strategic risks and technical debt, and key strengths to preserve. Keep under 200 words.
+**Quick Overview:**
+*   **Current Architecture**: [1 bullet summarizing what this codebase does]
+*   **Critical Strategic Risk**: [1 bullet on technical debt or highest risk area]
+*   **Key Strength**: [1 bullet on the best software engineering practice observed]
+
+**Detailed Context:**
+[Write a rich, 3-4 sentence analytical paragraph expanding on the current state of the architecture, the impact of the technical debt, and how the core strengths balance out these risks. Give the engineers deep nuance on what it's like to work in this codebase.]
 
 ## 2. Technology Stack & Architecture
 
@@ -424,18 +430,26 @@ Then short paragraphs (2-4 sentences each) for:
 
 ## 3. Feature Progress & Current State
 
-First, one markdown table:
-
 | Feature Area | Files/Modules | Current State | Maturity |
 |--------------|---------------|---------------|----------|
 
-Then for each major feature area (keep each to 3-5 bullets): **What exists** (file/module refs), **Maturity**, **Improvement areas** (file refs only, no code), **Impact**. Use **bold** for labels.
+*For each major feature area (max 5), provide a mixed breakdown:*
+### [Feature Name]
+[Write a 2-3 sentence paragraph detailing the feature's architecture, complexity, and how it is implemented within the codebase.]
+  - **Maturity**: [Maturity level]
+  - **Improvement Areas**: [File refs only, no code fixes]
 
 ## 4. Technology Trend Intelligence
 
-**If "TECHNOLOGY TREND INTELLIGENCE" (or equivalent trend data) is present in the findings:** Write 2-3 short paragraphs or a short table: version comparison (used vs latest), momentum (growing/declining), upgrade opportunities with effort, and any emerging risks. Use only the trend data provided.
+*If "TECHNOLOGY TREND INTELLIGENCE" (or equivalent) is in findings, provide a mix of metrics and analysis:*
+- **Version Check**: [Used vs Latest]
+- **Momentum**: [Growing, Stable, Declining]
+- **Upgrade Path**: [Effort/Risk of upgrading to modern standards]
 
-**If no trend data:** Write one sentence: "Trend intelligence was not available for this analysis."
+**Trend Analysis:**
+[Write a 2-3 sentence paragraph explaining what these trends mean for the longevity and maintenance of the codebase. Are they falling behind the industry standard? Is there a risk of talent-drain?]
+
+*If no trend data:* "Trend intelligence was not available."
 
 ## 5. Security & Performance
 
@@ -502,6 +516,86 @@ One closing sentence: the single most important technical next step.
 ---
 Be comprehensive but scannable. Every claim must trace back to the raw findings. Cite filenames and module names. Never suggest or paste code fixes."""
 
+
+EXECUTIVE_STATS_PROMPT = """Analyze the technical findings to generate quantitative executive metrics AND a structured executive report broken into sections.
+You must be realistic and critical—do not give perfect scores unless the code is flawless.
+
+Repository: {repo_name}
+
+=== TECHNICAL FINDINGS ===
+{findings}
+==========================
+
+RULES:
+1. **Health Score (0-100)**: a weighted average of code quality, architecture, and risk.
+   - < 60: Critical issues, legacy code, missing tests.
+   - 60-79: Functional but has debt or risks.
+   - 80+: Modern, well-tested, secure.
+2. **Radar Metrics (0-100)**:
+   - Security: Auth, validation, dependency risks.
+   - Scalability: Architecture, caching, async patterns.
+   - Maintainability: Typing, tests, modularity, docs.
+   - Performance: N+1 queries, bundling, algorithms (if visible).
+   - Modernity: Framework freshness, pattern usage (e.g. Hooks vs Class components).
+3. **Tech Debt Days**: Estimate person-days to fix "High" and "Critical" issues.
+   - Be conservative: 1 critical issue = 2-5 days.
+4. **Risk Level**: "Low", "Medium", "High", "Critical".
+   - Critical = Code implies security breach or production crash likely.
+5. **Architecture Diagram**:
+   - Based on the repository structure, generate a Mermaid.js flowchart (graph LR) mapping out the system architecture (Frontend, Backend, Database, External APIs).
+   - Output ONLY the raw Mermaid code string in the `architecture_diagram` JSON field. Do not include markdown backticks (```mermaid) in the JSON value. Ensure all characters are properly escaped for JSON.
+6. **tldr_strip**: A quick-glance object with the most important KPIs for the top banner.
+7. **sections**: An ordered array of report sections. Each section MUST have:
+   - `title`: clear heading (e.g. "Executive Overview", "Business Risk", "Growth Opportunities").
+   - `detailed_markdown`: STRICT INSTRUCTION: Must use a highly scannable, modular mix of short paragraphs (2-3 sentences max) AND bullet points. Avoid massive walls of text. Provide deep analytical insight, but format it cleanly. If listing risks, features, or roadmap items, use bullet points or markdown tables.
+   - `associated_stat` (optional): ONE relevant inline metric for the section. Use `id` to hint at rendering style: "roi", "risk", "health", "debt", "trend". Must also include `label`, `value`, `trend` (e.g. "+12%"), and `trend_direction` ("up", "down", "neutral").
+   Generate 5-8 sections covering: Executive Overview, Business Model, Growth Opportunities, Risk Assessment, Technology Position, Investment Roadmap, and an optional Summary.
+
+Respond with valid JSON matching this schema (NO markdown, NO commentary):
+{{
+    "overall_health_score": 75,
+    "radar_metrics": {{
+        "Security": 80,
+        "Scalability": 60,
+        "Maintainability": 70,
+        "Performance": 85,
+        "Modernity": 90
+    }},
+    "tech_debt_estimate_days": 10,
+    "risk_level": "Medium",
+    "architecture_diagram": "graph LR\\n  A[Frontend] --> B[API Gateway]\\n  B --> C[(Database)]",
+    "tldr_strip": {{
+        "overall_health": "75/100",
+        "tech_debt_days": "10 days",
+        "risk_level": "Medium",
+        "top_opportunity": "Add caching layer for 3x throughput"
+    }},
+    "sections": [
+        {{
+            "title": "Executive Overview",
+            "detailed_markdown": "The codebase is currently in a production-ready state, built upon a modern, highly scalable technology stack. However, it carries a moderate amount of technical debt that must be addressed to ensure long-term stability and velocity.\\n\\n**Key Observations:**\\n* **Architecture**: The API layer is logically separated and well-structured, allowing for agile feature development.\\n* **Quality**: Comprehensive use of type safety significantly reduces runtime errors.\\n* **Action Item**: Allocate dedicated engineering cycles toward paying down debt in dependency management and edge-case testing.",
+            "associated_stat": {{
+                "id": "health",
+                "label": "Codebase Health",
+                "value": "75/100",
+                "trend": "Stable",
+                "trend_direction": "neutral"
+            }}
+        }},
+        {{
+            "title": "Risk Assessment",
+            "detailed_markdown": "A thorough security analysis has uncovered two high-severity vulnerabilities within the authentication mechanisms. These gaps expose the system to potential unauthorized access and represent a significant risk to the business.\\n\\n**Priority Remediations (Next Sprint):**\\n* Implement robust OAuth2/OIDC compliant flows.\\n* Strengthen password hashing algorithms.\\n* Enforce strict session timeout protocols.\\n\\nFailure to act promptly leaves the organization vulnerable to substantial operational disruption and compliance penalties.",
+            "associated_stat": {{
+                "id": "risk",
+                "label": "Security Risk",
+                "value": "High",
+                "trend": "2 Critical CVEs",
+                "trend_direction": "down"
+            }}
+        }}
+    ]
+}}"""
+
 AGGREGATED_EXECUTIVE_PROMPT = """You are a Strategic Technology Advisor writing a briefing for C-Level leadership (CEO, CFO, CPO).
 Your job: translate technical findings into clear business impact, risk, and investment decisions. Executives will use this to decide where to invest time and money.
 
@@ -524,15 +618,16 @@ OUTPUT STRUCTURE (follow this order; use these exact section headers so the repo
 
 ## 1. Executive Summary
 
-Start with **Bottom line:** one sentence that a busy executive can act on (e.g. "The codebase is production-ready but outdated dependencies and missing tests create security and scaling risk; address these in the next quarter.").
+**Bottom line:** [One highly-actionable sentence that a busy executive can act on immediately.]
 
-Then 2-3 short paragraphs (2-4 sentences each) covering:
-- **Current state**: What the product/tech is today in business terms (what it does, who it serves).
-- **Competitive positioning**: If trend data is in the findings, summarize how this stack compares to the market (modern vs legacy, gaps). If no trend data, say "Market trend data was not available."
-- **Primary business risk**: The single biggest threat (e.g. "Security exposure from old libraries", "Cannot scale to 10x users without rework").
-- **Top opportunity**: The single highest-value improvement or investment to consider first.
+**Quick Overview:**
+- **Current State**: [What it does and who it serves, 1 sentence maximum]
+- **Competitive Edge**: [How this stack compares to the market. Say "No data" if no trend data available]
+- **Primary Risk**: [The single biggest threat, 1 sentence maximum]
+- **Top Opportunity**: [The single highest-value investment first, 1 sentence maximum]
 
-Keep this section under 200 words.
+**Strategic Context:**
+[Write a detailed 3-4 sentence paragraph that expands on the quick overview. Speak powerfully like an advisor to the CEO. Explain the invisible costs of their technical debt or the competitive advantage of their current architecture. Help them understand *why* the metrics above matter.]
 
 ## 2. Feature Improvement Opportunities
 
@@ -541,10 +636,12 @@ First, provide one markdown table summarizing features and opportunities:
 | Feature | Current State | Improvement | Business Impact | Effort |
 |---------|---------------|-------------|-----------------|--------|
 
-Then, for the **top 3-5** improvements only, add a short subsection per item (3-5 bullet points each):
-- **What it is today**: One sentence.
-- **What to do**: One sentence.
-- **Business impact**: Revenue, conversion, or efficiency (quantify if the findings support it).
+Then, for the **top 3-5** improvements only, add a short subsection per item combining data points and narrative:
+
+### [Improvement Name]
+[Write a persuasive 2-3 sentence paragraph on *why* this improvement matters to the business' bottom line or future growth capability.]
+- **Current Blockers**: [What is happening today]
+- **Business Impact**: [Quantified revenue, conversion, or efficiency gain]
 - **Time and cost**: e.g. "2-4 weeks, 1 developer."
 
 Use **bold** for labels. Keep each subsection brief.
@@ -561,7 +658,13 @@ If no concrete optimizations are evident, say so in one sentence and skip the ta
 
 ## 4. Market & Competitive Context
 
-**If trend intelligence is present in the findings:** Write 2-3 short paragraphs on industry direction, how this product compares, opportunities to capture, and risks of falling behind. Use specifics from the trend data.
+**If trend intelligence is present in the findings:** Provide a mix of metrics and strategic analysis based on the trend data:
+- **Industry Trajectory**: [Where the market for this stack is heading]
+- **Talent Pool Risk**: [Is it getting harder/more expensive to hire for these technologies?]
+- **Modernization Urgency**: [Low, Medium, High, Critical based on trend momentum]
+
+**Competitive Analysis:**
+[Write a persuasive 2-3 sentence paragraph analyzing how the current tech stack impacts the company's ability to outmaneuver competitors. If the tech is modern, how does it accelerate them? If it's legacy, what specific opportunities or speed are they losing to faster startups?]
 
 **If no trend data:** Write one sentence: "Market trend analysis was not available for this assessment."
 
