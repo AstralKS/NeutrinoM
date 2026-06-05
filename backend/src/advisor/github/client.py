@@ -51,11 +51,9 @@ class GitHubClient:
             # Debug: print first few characters to see which token is used
             prefix = self._access_token[:10] if len(self._access_token) > 10 else "***"
             logger.info(f"Using GitHub token starting with {prefix}...")
-            print(f"DEBUG: Using GitHub token starting with {prefix}...")
             headers["Authorization"] = f"Bearer {self._access_token}"
         else:
             logger.info("No GitHub token provided, using unauthenticated request.")
-            print("DEBUG: No GitHub token provided, using unauthenticated request.")
         return headers
 
     @staticmethod

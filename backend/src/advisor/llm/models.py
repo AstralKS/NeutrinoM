@@ -33,8 +33,8 @@ class ModelInfo(BaseModel):
 # classifier that only returns "User Safety: safe", not a code analysis model.
 AVAILABLE_MODELS: list[ModelInfo] = [
     ModelInfo(
-        id="google/gemini-2.0-flash-thinking-exp:free",
-        name="Gemini 2.0 Flash Thinking",
+        id="google/gemini-2.0-flash-lite-preview-02-05",
+        name="Gemini 2.0 Flash Lite",
         context_length=1000000,
         capabilities=[
             ModelCapability.ANALYSIS,
@@ -42,11 +42,25 @@ AVAILABLE_MODELS: list[ModelInfo] = [
             ModelCapability.REASONING,
             ModelCapability.SUMMARIZATION,
         ],
+        is_free=False,
         priority=0,
     ),
     ModelInfo(
+        id="openai/gpt-4o-mini",
+        name="GPT-4o Mini",
+        context_length=128000,
+        capabilities=[
+            ModelCapability.ANALYSIS,
+            ModelCapability.CODING,
+            ModelCapability.REASONING,
+            ModelCapability.SUMMARIZATION,
+        ],
+        is_free=False,
+        priority=1,
+    ),
+    ModelInfo(
         id="meta-llama/llama-3.3-70b-instruct:free",
-        name="Llama 3.3 70B",
+        name="Llama 3.3 70B (Free)",
         context_length=131000,
         capabilities=[
             ModelCapability.ANALYSIS,
@@ -54,40 +68,8 @@ AVAILABLE_MODELS: list[ModelInfo] = [
             ModelCapability.REASONING,
             ModelCapability.SUMMARIZATION,
         ],
-        priority=1,
-    ),
-    ModelInfo(
-        id="mistralai/mistral-small-24b-instruct-2501:free",
-        name="Mistral Small 24B",
-        context_length=32000,
-        capabilities=[
-            ModelCapability.ANALYSIS,
-            ModelCapability.CODING,
-            ModelCapability.REASONING,
-            ModelCapability.SUMMARIZATION,
-        ],
+        is_free=True,
         priority=2,
-    ),
-    ModelInfo(
-        id="qwen/qwen-2.5-coder-32b-instruct:free",
-        name="Qwen 2.5 Coder",
-        context_length=32000,
-        capabilities=[
-            ModelCapability.ANALYSIS,
-            ModelCapability.REASONING,
-            ModelCapability.CODING,
-        ],
-        priority=3,
-    ),
-    ModelInfo(
-        id="google/gemma-2-9b-it:free",
-        name="Gemma 2 9B",
-        context_length=8000,
-        capabilities=[
-            ModelCapability.ANALYSIS,
-            ModelCapability.SUMMARIZATION,
-        ],
-        priority=4,
     ),
 ]
 
