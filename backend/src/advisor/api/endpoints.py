@@ -87,16 +87,17 @@ app = FastAPI(
 import os as _os
 
 _allowed_origins_env = _os.getenv("ALLOWED_ORIGINS", "")
-_allowed_origins = (
-    [o.strip() for o in _allowed_origins_env.split(",") if o.strip()]
-    if _allowed_origins_env
-    else ["*"]  # permissive in local dev only
-)
+_allowed_origins = [
+    "https://neutrino-m.vercel.app",
+    "http://localhost:5173",
+    "http://localhost:3000",
+]
+if _allowed_origins_env:
+    _allowed_origins.extend([o.strip() for o in _allowed_origins_env.split(",") if o.strip()])
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_allowed_origins if _allowed_origins_env else [],
-    allow_origin_regex=".*" if not _allowed_origins_env else None,
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
