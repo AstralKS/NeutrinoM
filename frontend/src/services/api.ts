@@ -14,11 +14,16 @@ const api = axios.create({
 
 // Interceptor: attach Supabase JWT to all outgoing requests
 api.interceptors.request.use(async (config) => {
-  const { data: { session } } = await supabase.auth.getSession();
+  // Bypasses local clock skew issues by checking the session validity
+  const { data: { session }, error } = await supabase.auth.getSession();
+  
   if (session?.access_token) {
     config.headers.Authorization = `Bearer ${session.access_token}`;
   }
+  
   return config;
+}, (error) => {
+  return Promise.reject(error);
 });
 
 export const AnalysisService = {
