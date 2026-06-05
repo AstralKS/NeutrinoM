@@ -56,6 +56,17 @@ class GitHubClient:
             logger.info("No GitHub token provided, using unauthenticated request.")
         return headers
 
+    async def _make_get_request(
+        self, client: httpx.AsyncClient, url: str, params: dict[str, Any] | None = None
+    ) -> httpx.Response:
+        """Make GET request with automatic token fallback on 401."""
+        response = await client.get(url, params=params, headers=self._get_headers())
+        if response.status_code == 401 and self._access_token:
+            logger.warning("GitHub token is invalid (401 Bad Credentials). Falling back to unauthenticated request.")
+            self._access_token = None  # Clear invalid token
+            response = await client.get(url, params=params, headers=self._get_headers())
+        return response
+
     @staticmethod
     def parse_repo_url(url: str) -> tuple[str, str]:
         """Extract owner and repo name from GitHub URL.
@@ -96,9 +107,9 @@ class GitHubClient:
             Repository metadata including default branch, size, etc.
         """
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
-                f"{GITHUB_API_URL}/repos/{owner}/{repo}",
-                headers=self._get_headers(),
+            response = await self._make_get_request(
+                client,
+                f"{GITHUB_API_URL}/repos/{owner}/{repo}"
             )
 
             if response.status_code == 404:
@@ -154,10 +165,10 @@ class GitHubClient:
         """
         async with httpx.AsyncClient(timeout=60.0) as client:
             # Get the tree recursively
-            response = await client.get(
+            response = await self._make_get_request(
+                client,
                 f"{GITHUB_API_URL}/repos/{owner}/{repo}/git/trees/{branch}",
-                params={"recursive": "1"},
-                headers=self._get_headers(),
+                params={"recursive": "1"}
             )
 
             if response.status_code != 200:
@@ -203,10 +214,10 @@ class GitHubClient:
             File content as string, or None if too large or binary.
         """
         async with httpx.AsyncClient(timeout=30.0) as client:
-            response = await client.get(
+            response = await self._make_get_request(
+                client,
                 f"{GITHUB_API_URL}/repos/{owner}/{repo}/contents/{path}",
-                params={"ref": branch},
-                headers=self._get_headers(),
+                params={"ref": branch}
             )
 
             if response.status_code != 200:
