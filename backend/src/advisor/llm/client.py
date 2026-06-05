@@ -3,6 +3,7 @@
 Handles API calls, rate limiting, and automatic failover.
 """
 
+import asyncio
 import json
 import logging
 import time
@@ -201,41 +202,48 @@ class OpenRouterClient:
         }
 
         client = self._get_http_client()
-        start_time = time.perf_counter()
+        
+        max_retries = 4
+        for attempt in range(max_retries):
+            start_time = time.perf_counter()
+            response = await client.post(
+                OPENROUTER_API_URL,
+                headers=headers,
+                json=payload,
+            )
+            duration_ms = round((time.perf_counter() - start_time) * 1000)
 
-        response = await client.post(
-            OPENROUTER_API_URL,
-            headers=headers,
-            json=payload,
-        )
+            if response.status_code == 429 and attempt < max_retries - 1:
+                wait_time = 8 * (attempt + 1)
+                logger.warning(f"Rate limited on {model} (attempt {attempt+1}/{max_retries}). Retrying in {wait_time}s...")
+                await asyncio.sleep(wait_time)
+                continue
 
-        duration_ms = round((time.perf_counter() - start_time) * 1000)
+            if response.status_code != 200:
+                raise OpenRouterError(
+                    f"API error: {response.text}",
+                    status_code=response.status_code,
+                )
 
-        if response.status_code != 200:
-            raise OpenRouterError(
-                f"API error: {response.text}",
-                status_code=response.status_code,
+            data = response.json()
+
+            if "error" in data:
+                raise OpenRouterError(f"API error: {data['error']}")
+
+            # Track usage
+            usage = data.get("usage", {})
+            self._total_tokens_used += usage.get("total_tokens", 0)
+
+            logger.info(
+                f"LLM call to {model} completed in {duration_ms}ms "
+                f"(tokens: {usage.get('total_tokens', '?')})"
             )
 
-        data = response.json()
-
-        if "error" in data:
-            raise OpenRouterError(f"API error: {data['error']}")
-
-        # Track usage
-        usage = data.get("usage", {})
-        self._total_tokens_used += usage.get("total_tokens", 0)
-
-        logger.info(
-            f"LLM call to {model} completed in {duration_ms}ms "
-            f"(tokens: {usage.get('total_tokens', '?')})"
-        )
-
-        return {
-            "content": data["choices"][0]["message"]["content"],
-            "usage": usage,
-            "duration_ms": duration_ms,
-        }
+            return {
+                "content": data["choices"][0]["message"]["content"],
+                "usage": usage,
+                "duration_ms": duration_ms,
+            }
 
     def _parse_json_response(self, content: str) -> Any:
         """Parse JSON from LLM response, handling markdown code blocks."""
