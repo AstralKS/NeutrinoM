@@ -95,7 +95,8 @@ _allowed_origins = (
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_allowed_origins,
+    allow_origins=_allowed_origins if _allowed_origins_env else [],
+    allow_origin_regex=".*" if not _allowed_origins_env else None,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
