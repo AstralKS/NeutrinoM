@@ -402,33 +402,42 @@ class AnalysisOrchestrator:
         latest_version = getattr(insight, "latest_version", "")
         version_info = getattr(insight, "version_info", "")
 
-        parts = [f"**{tag}** ({source_label}):"]
-        parts.append(f"  Key Points: {'; '.join(points[:15])}")
-
-        if latest_version:
-            parts.append(f"  Latest Version: {latest_version}")
-        if version_info:
-            parts.append(f"  Version Info: {version_info}")
-        if momentum:
-            parts.append(f"  Momentum: {momentum}")
+        parts = [f"### {tag}"]
+        
+        meta = []
         if direction:
-            parts.append(f"  Direction: {direction}")
-        if risks:
-            parts.append(f"  Risks: {'; '.join(risks[:7])}")
-        if opps:
-            parts.append(f"  Opportunities: {'; '.join(opps[:7])}")
+            meta.append(f"**Direction**: {direction}")
+        if momentum:
+            meta.append(f"**Momentum**: {momentum}")
+        if latest_version:
+            meta.append(f"**Latest Version**: `{latest_version}`")
+        
+        if meta:
+            parts.append(" | ".join(meta) + "\n")
+            
+        if version_info:
+            parts.append(f"> **Version Context:** {version_info}\n")
+
+        parts.append("#### Key Insights")
+        for pt in points[:10]:
+            parts.append(f"- {pt}")
+            
+        if risks or opps:
+            parts.append("\n#### Strategic Outlook")
+            for r in risks[:5]:
+                parts.append(f"- ⚠️ **Risk**: {r}")
+            for o in opps[:5]:
+                parts.append(f"- 💡 **Opportunity**: {o}")
 
         if sources:
-            src_lines = []
-            for s in sources[:7]:
+            parts.append("\n#### Sources")
+            for s in sources[:5]:
                 title = getattr(s, "title", "")
                 url = getattr(s, "url", "")
-                score = getattr(s, "score", 0)
                 if title and url:
-                    src_lines.append(f"    - [{title}]({url}) (score: {score})")
-            if src_lines:
-                parts.append("  Sources:\n" + "\n".join(src_lines))
+                    parts.append(f"- [{title}]({url})")
 
+        parts.append("\n---\n")
         return "\n".join(parts)
 
     def _format_tech_stack(self, tech_stack: TechStackInfo) -> str:

@@ -35,13 +35,28 @@ export function RepoSelector({ onAnalyze, isLoading }: RepoSelectorProps) {
     const [reposLoading, setReposLoading] = useState(false);
     const [reposError, setReposError] = useState<string | null>(null);
     const [searchQuery, setSearchQuery] = useState("");
+    const [analyzingRepoId, setAnalyzingRepoId] = useState<number | null>(null);
 
-    // Fetch GitHub repos when import tab is selected
+    // Clear analyzing state when global loading state finishes
     useEffect(() => {
-        if (activeTab === "import" && user && repos.length === 0 && !reposLoading) {
+        if (!isLoading) {
+            setAnalyzingRepoId(null);
+        }
+    }, [isLoading]);
+
+    // Detect if the user has a GitHub identity linked to their account
+    const hasGitHubIdentity = useMemo(() => {
+        return user?.identities?.some((id) => id.provider === "github") ?? false;
+    }, [user]);
+
+    const canImportRepos = hasGitHubIdentity;
+
+    // Fetch GitHub repos when import tab is selected (only for GitHub-authenticated users)
+    useEffect(() => {
+        if (activeTab === "import" && user && canImportRepos && repos.length === 0 && !reposLoading) {
             fetchRepos();
         }
-    }, [activeTab, user]);
+    }, [activeTab, user, canImportRepos]);
 
     const fetchRepos = async () => {
         setReposLoading(true);
@@ -62,6 +77,7 @@ export function RepoSelector({ onAnalyze, isLoading }: RepoSelectorProps) {
             setReposLoading(false);
         }
     };
+
 
     const filteredRepos = useMemo(() => {
         if (!searchQuery) return repos;
@@ -86,6 +102,7 @@ export function RepoSelector({ onAnalyze, isLoading }: RepoSelectorProps) {
         if (repo.private && !token) {
             console.warn("Analyzing private repo but no provider token found");
         }
+        setAnalyzingRepoId(repo.id);
         onAnalyze(repo.html_url, token ?? undefined);
     };
 
@@ -204,7 +221,25 @@ export function RepoSelector({ onAnalyze, isLoading }: RepoSelectorProps) {
                                         Go to the login page to connect your GitHub account.
                                     </p>
                                 </div>
+                            ) : !canImportRepos ? (
+                                <div className="text-center py-8 text-zinc-400">
+                                    <Github className="w-10 h-10 mx-auto mb-3 text-zinc-600" />
+                                    <p className="mb-2 text-zinc-300">GitHub account required</p>
+                                    <p className="text-xs text-zinc-500 mb-4 max-w-xs mx-auto">
+                                        You must link a GitHub account to import repositories. Please sign out and sign in with GitHub.
+                                    </p>
+                                    <p className="text-xs text-zinc-600">
+                                        Or use the <button type="button" onClick={() => setActiveTab("url")} className="text-indigo-400 hover:text-indigo-300 underline underline-offset-2 transition-colors">Paste URL</button> tab to analyze any public repo.
+                                    </p>
+                                </div>
+                            ) : isLoading ? (
+                                <div className="flex flex-col items-center justify-center py-16 text-zinc-400 text-center">
+                                    <Loader2 className="w-12 h-12 animate-spin mb-6 text-indigo-500 mx-auto" />
+                                    <p className="text-white font-medium text-xl mb-2">Analyzing Repository...</p>
+                                    <p className="text-sm text-zinc-500">Generating architectural insights. This may take up to 30 seconds.</p>
+                                </div>
                             ) : (
+
                                 <>
                                     {/* Search */}
                                     <div className="relative">
@@ -247,7 +282,11 @@ export function RepoSelector({ onAnalyze, isLoading }: RepoSelectorProps) {
                                                     <div className="flex items-start justify-between gap-3">
                                                         <div className="min-w-0 flex-1">
                                                             <div className="flex items-center gap-2 mb-1">
-                                                                <GitBranch className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
+                                                                {isLoading && analyzingRepoId === repo.id ? (
+                                                                    <Loader2 className="w-3.5 h-3.5 text-indigo-400 animate-spin flex-shrink-0" />
+                                                                ) : (
+                                                                    <GitBranch className="w-3.5 h-3.5 text-zinc-500 flex-shrink-0" />
+                                                                )}
                                                                 <span className="font-medium text-white text-sm truncate group-hover:text-indigo-300 transition-colors">
                                                                     {repo.full_name}
                                                                 </span>
